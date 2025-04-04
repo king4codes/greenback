@@ -1,8 +1,8 @@
 'use client'
 
-import { useCurrentUserImage } from '@/components/blocks/current-user-avatar/hooks/use-current-user-image'
-import { useCurrentUserName } from '@/components/blocks/current-user-avatar/hooks/use-current-user-name'
-import { createClient } from '@/components/clients/nextjs/lib/supabase/client'
+import { useCurrentUserImage } from '@/hooks/use-current-user-image'
+import { useCurrentUserName } from '@/hooks/use-current-user-name'
+import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 
 const supabase = createClient()
