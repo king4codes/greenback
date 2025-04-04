@@ -17,7 +17,7 @@ interface AuthState {
 }
 
 export const useSupabaseAuth = () => {
-  const { address, connected, signMessage } = useWalletStatus();
+  const { address, connected } = useWalletStatus();
 
   // Check if user is authenticated with Supabase
   const checkAuth = async (): Promise<AuthState> => {
