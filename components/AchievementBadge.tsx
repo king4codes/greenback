@@ -14,7 +14,7 @@ export default function AchievementBadge({
   icon, 
   earned, 
   description, 
-  earnedAt,
+  earned_at,
   showProgress = false,
   progressPercent = 0
 }: AchievementBadgeProps) {
@@ -49,9 +49,9 @@ export default function AchievementBadge({
           <div className="text-sm font-mono">{name}</div>
           <div className="text-xs text-zinc-400 mt-1">{description}</div>
           
-          {earned && earnedAt && (
+          {earned && earned_at && (
             <div className="text-xs text-green-400 mt-1">
-              Earned on {earnedAt.toLocaleDateString()}
+              Earned on {new Date(earned_at).toLocaleDateString()}
             </div>
           )}
           
