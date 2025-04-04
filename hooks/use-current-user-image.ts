@@ -1,4 +1,4 @@
-import { createClient } from '@/components/clients/nextjs/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 
 export const useCurrentUserImage = () => {
