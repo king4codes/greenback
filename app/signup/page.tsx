@@ -19,7 +19,7 @@ export default function SignUpPage() {
 
   if (loading) {
     return (
-      <MainLayout username="">
+      <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="animate-pulse text-zinc-400">Loading...</div>
         </div>
@@ -28,7 +28,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <MainLayout username="">
+    <MainLayout>
       <div className="max-w-2xl mx-auto py-8">
         <div className="text-center mb-8">
           <h1 className="font-garamond text-3xl text-green-400 mb-4">
