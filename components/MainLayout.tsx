@@ -47,7 +47,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
     { 
       name: user ? 'Logout' : 'Login', 
       icon: LogOut, 
-      href: user ? '/api/auth/signout' : '/login'
+      href: '/login'
     }
   ]
 
@@ -67,8 +67,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
                     try {
                       const response = await fetch('/api/auth/signout')
                       if (response.ok) {
-                        router.push('/login')
-                        router.refresh()
+                        const baseUrl = window.location.origin || 'https://greenback-eight.vercel.app'
+                        window.location.href = `${baseUrl}/login`
                       }
                     } catch (error) {
                       console.error('Error signing out:', error)

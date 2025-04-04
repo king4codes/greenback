@@ -10,8 +10,9 @@ export default function LogoutButton() {
     try {
       const response = await fetch('/api/auth/signout')
       if (response.ok) {
-        router.push('/login')
-        router.refresh()
+        // Get the current origin or use the production URL as fallback
+        const baseUrl = window.location.origin || 'https://greenback-eight.vercel.app'
+        window.location.href = `${baseUrl}/login`
       }
     } catch (error) {
       console.error('Error signing out:', error)
