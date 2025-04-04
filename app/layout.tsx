@@ -1,12 +1,10 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import Providers from './providers';
 import { SolanaWalletProvider } from '@/lib/solana/WalletProvider';
 import ClientLayout from '@/components/ClientLayout';
 import Script from 'next/script';
-
-const inter = Inter({ subsets: ['latin'] });
+import { inter } from '@/lib/fonts';
 
 export const metadata: Metadata = {
   title: 'Inside Baron',
