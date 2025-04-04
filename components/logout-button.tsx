@@ -1,6 +1,5 @@
 'use client'
 
-import { supabase } from '@/lib/supabase-browser'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 
@@ -8,8 +7,15 @@ export default function LogoutButton() {
   const router = useRouter()
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.refresh()
+    try {
+      const response = await fetch('/api/auth/signout')
+      if (response.ok) {
+        router.push('/login')
+        router.refresh()
+      }
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
   }
 
   return (

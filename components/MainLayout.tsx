@@ -62,7 +62,21 @@ export default function MainLayout({ children }: MainLayoutProps) {
             return (
               <button
                 key={item.name}
-                onClick={() => router.push(item.href)}
+                onClick={async () => {
+                  if (item.name === 'Logout') {
+                    try {
+                      const response = await fetch('/api/auth/signout')
+                      if (response.ok) {
+                        router.push('/login')
+                        router.refresh()
+                      }
+                    } catch (error) {
+                      console.error('Error signing out:', error)
+                    }
+                  } else {
+                    router.push(item.href)
+                  }
+                }}
                 className={cn(
                   "transition-colors",
                   isActive
