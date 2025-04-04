@@ -142,7 +142,7 @@ export function RealtimeChat({ roomName, username }: RealtimeChatProps) {
                   }}
                 >
                   <div
-                    className={`message-content mt-1 px-4 py-2 rounded-lg max-w-[80%] cursor-pointer ${
+                    className={`message-content mt-1 px-4 py-2 rounded-lg max-w-[80%] break-words whitespace-pre-wrap ${
                       message.user.name === username
                         ? 'bg-green-400/20 text-green-400'
                         : 'bg-zinc-800 text-zinc-300'
