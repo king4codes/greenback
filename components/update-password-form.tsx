@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { createClient } from '@/components/clients/nextjs/lib/supabase/client'
+import { supabase } from '@/lib/supabase-browser'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -21,14 +21,15 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.updateUser({ password })
+      const { error } = await supabase.auth.updateUser({
+        password: password,
+      })
       if (error) throw error
       // Update this route to redirect to an authenticated route. The user already has an active session.
       router.push('/protected')
@@ -47,7 +48,7 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
           <CardDescription>Please enter your new password below.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleForgotPassword}>
+          <form onSubmit={handleUpdatePassword}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="password">New password</Label>

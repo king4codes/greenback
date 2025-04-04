@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { createClient } from '@/components/clients/nextjs/lib/supabase/client'
+import { supabase } from '@/lib/supabase-browser'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -23,7 +23,6 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
