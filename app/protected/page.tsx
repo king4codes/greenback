@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
 
 import LogoutButton from '@/components/logout-button'
-import { createClient } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase-server'
 
 export default async function ProtectedPage() {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const { data, error } = await supabase.auth.getUser()
   if (error || !data?.user) {
