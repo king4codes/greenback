@@ -67,3 +67,76 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* TradingView Widget Styles */
+.tradingview-widget-container {
+  position: relative;
+  isolation: isolate;
+}
+
+.tradingview-widget-container__widget {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+}
+
+.tradingview-widget-copyright {
+  text-align: center;
+  font-size: 0.75rem;
+  margin-top: 8px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  position: relative;
+  z-index: 10;
+}
+
+.tradingview-widget-copyright:hover {
+  opacity: 1;
+}
+
+.tradingview-widget-copyright a {
+  color: #4ade80 !important;
+  text-decoration: none;
+}
+
+.blue-text {
+  color: #4ade80 !important;
+}
+
+/* TradingView Ticker Tape Styles */
+.tradingview-ticker-container {
+  position: relative;
+}
+
+.tradingview-ticker-container__widget {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.tradingview-ticker-copyright {
+  text-align: center;
+  font-size: 0.75rem;
+  margin-top: 8px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+/* Make the ticker height appropriate */
+.tradingview-ticker-container iframe {
+  height: 46px !important;
+  margin-bottom: 0 !important;
+  background-color: transparent !important;
+  border-radius: 0.5rem;
+}
+
+/* Deprecated selectors - keeping for backward compatibility during transition */
+.tradingview-widget-container iframe.ticker-tape {
+  background-color: transparent !important;
+  border-radius: 0.5rem;
+}
+
+.tradingview-widget-container iframe[src*="embed-widget-ticker-tape"] {
+  height: 46px !important;
+  margin-bottom: 0 !important;
+}
