@@ -46,7 +46,7 @@ export default function WalletPage() {
   }
 
   return (
-    <MainLayout username="Terry">
+    <MainLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="font-garamond text-2xl text-green-400">Wallet</h1>
