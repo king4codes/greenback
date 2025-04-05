@@ -27,6 +27,23 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
 
+  const refreshUserProfile = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+      setUser(profile);
+    } catch (err) {
+      console.error('Error refreshing user profile:', err);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     console.log('Auth hook initialized, checking session...');
@@ -279,6 +296,7 @@ export function useAuth() {
 
       if (!user) throw new Error('No user logged in');
 
+      console.log('Updating profile:', updates);
       const { error: updateError } = await supabase
         .from('users')
         .update(updates)
@@ -295,6 +313,7 @@ export function useAuth() {
 
       if (profileError) throw profileError;
 
+      console.log('Profile updated successfully:', profile);
       setUser(profile);
       return profile;
     } catch (err: any) {
@@ -449,6 +468,7 @@ export function useAuth() {
     connectWallet,
     getUserStats,
     updateProfile,
-    updateEmail
+    updateEmail,
+    refreshUserProfile
   };
 } 

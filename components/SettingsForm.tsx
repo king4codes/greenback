@@ -2,9 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 
-export default function SettingsForm() {
+interface SettingsFormProps {
+  onUpdate?: () => Promise<void>;
+}
+
+export default function SettingsForm({ onUpdate }: SettingsFormProps) {
   const { user, updateProfile, updateEmail } = useAuth();
+  const router = useRouter();
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [email, setEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -29,6 +35,12 @@ export default function SettingsForm() {
     try {
       await updateProfile({ display_name: displayName });
       setSuccess('Profile updated successfully');
+      // Call onUpdate if provided
+      if (onUpdate) {
+        await onUpdate();
+      }
+      // Force a refresh of the page to update all components
+      router.refresh();
     } catch (err: any) {
       setError(err.message || 'Failed to update profile');
     } finally {

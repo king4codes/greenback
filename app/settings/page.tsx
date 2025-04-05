@@ -9,7 +9,7 @@ import { LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase-browser'
 
 export default function SettingsPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, refreshUserProfile } = useAuth()
   const router = useRouter()
 
   // Redirect if not signed in
@@ -18,6 +18,11 @@ export default function SettingsPage() {
       router.push('/login')
     }
   }, [user, loading, router])
+
+  // Refresh user profile when page loads
+  useEffect(() => {
+    refreshUserProfile()
+  }, [refreshUserProfile])
 
   const handleLogout = async () => {
     try {
@@ -64,7 +69,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-zinc-800/50 rounded-lg p-8">
-          <SettingsForm />
+          <SettingsForm onUpdate={refreshUserProfile} />
         </div>
 
         {/* Logout Section */}
