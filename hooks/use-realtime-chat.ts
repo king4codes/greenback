@@ -47,6 +47,7 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<ReturnType<typeof supabase.channel> | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [lastMessageTimestamp, setLastMessageTimestamp] = useState<string | null>(null)
 
   const formatMessage = useCallback(async (dbMessage: DbChatMessage): Promise<ChatMessage> => {
     // Get reaction count for this message
@@ -86,7 +87,7 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
   }, [])
 
   // Fetch initial messages
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (timestamp?: string) => {
     try {
       setIsLoading(true)
       setError(null)
@@ -99,12 +100,19 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
         // Continue even if initialization fails - table might already exist
       }
       
-      const { data, error: fetchError } = await supabase
+      let query = supabase
         .from('chat_messages')
         .select('id, content, display_name, created_at, room_name, user_id')
         .eq('room_name', roomName)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(MESSAGES_PER_PAGE)
+
+      // If timestamp is provided, get messages before that timestamp
+      if (timestamp) {
+        query = query.lt('created_at', timestamp)
+      }
+      
+      const { data, error: fetchError } = await query
       
       if (fetchError) {
         console.error('Error fetching chat messages:', fetchError)
@@ -113,18 +121,34 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
       
       if (data) {
         const formattedMessages = await Promise.all(data.map(async (msg) => formatMessage(msg as DbChatMessage)))
-        setMessages(formattedMessages)
-      } else {
-        setMessages([])
+        
+        // Update last message timestamp for pagination
+        if (data.length > 0) {
+          const oldestMessage = data[data.length - 1]
+          setLastMessageTimestamp(oldestMessage.created_at)
+        }
+
+        // If this is a pagination request, append to existing messages
+        if (timestamp) {
+          setMessages(current => [...current, ...formattedMessages.reverse()])
+        } else {
+          // Initial load, set messages directly
+          setMessages(formattedMessages.reverse())
+        }
       }
     } catch (err) {
       console.error('Error in fetchMessages:', err)
       setError(err instanceof Error ? err.message : 'Failed to load chat messages')
-      setMessages([]) // Reset messages on error
     } finally {
       setIsLoading(false)
     }
   }, [roomName, initializeChatTable, formatMessage])
+
+  const loadMoreMessages = useCallback(() => {
+    if (lastMessageTimestamp) {
+      fetchMessages(lastMessageTimestamp)
+    }
+  }, [lastMessageTimestamp, fetchMessages])
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -238,7 +262,7 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
         
         channel
           .on('postgres_changes', { 
-            event: '*', 
+            event: 'INSERT', 
             schema: 'public', 
             table: 'chat_messages',
             filter: `room_name=eq.${roomName}`
@@ -279,7 +303,7 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
             )
             setMessages(updatedMessages)
           })
-          .subscribe(async (status) => {
+          .subscribe((status) => {
             if (!mounted) return
             
             if (status === 'SUBSCRIBED') {
@@ -321,6 +345,8 @@ export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
     isLoading,
     error,
     fetchMessages,
+    loadMoreMessages,
+    hasMoreMessages: messages.length >= MESSAGES_PER_PAGE,
     toggleReaction
   }
 } 

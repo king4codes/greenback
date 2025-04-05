@@ -17,13 +17,17 @@ export function RealtimeChat({ roomName, username }: RealtimeChatProps) {
     isLoading,
     error,
     fetchMessages,
+    loadMoreMessages,
+    hasMoreMessages,
     toggleReaction
   } = useRealtimeChat({ roomName, username })
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Focus input on mount
@@ -50,6 +54,27 @@ export function RealtimeChat({ roomName, username }: RealtimeChatProps) {
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
+
+  // Handle scroll for loading more messages
+  useEffect(() => {
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    const handleScroll = async () => {
+      if (
+        container.scrollTop === 0 &&
+        !isLoadingMore &&
+        hasMoreMessages
+      ) {
+        setIsLoadingMore(true)
+        await loadMoreMessages()
+        setIsLoadingMore(false)
+      }
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [loadMoreMessages, isLoadingMore, hasMoreMessages])
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,8 +126,11 @@ export function RealtimeChat({ roomName, username }: RealtimeChatProps) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-        {isLoading ? (
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
+        {isLoading && !messages.length ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-pulse text-zinc-500">Loading messages...</div>
           </div>
@@ -121,7 +149,12 @@ export function RealtimeChat({ roomName, username }: RealtimeChatProps) {
             No messages yet. Start the conversation!
           </div>
         ) : (
-          <div className="space-y-4">
+          <>
+            {isLoadingMore && (
+              <div className="text-center py-2">
+                <div className="animate-pulse text-zinc-500">Loading more messages...</div>
+              </div>
+            )}
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -150,39 +183,33 @@ export function RealtimeChat({ roomName, username }: RealtimeChatProps) {
                   >
                     {message.content}
                   </div>
-                  {activeMessageId === message.id && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleReaction(message.id)
-                      }}
-                      className={`flex items-center justify-center p-1.5 rounded-full transition-all ${
-                        message.reactions.hasReacted
-                          ? 'bg-red-400/20 text-red-400 scale-110'
-                          : 'hover:bg-zinc-800 text-zinc-500 hover:text-red-400'
-                      }`}
-                    >
-                      <span className="text-base">❤️</span>
-                      {message.reactions.count > 0 && (
-                        <span className="ml-1 text-xs">{message.reactions.count}</span>
-                      )}
-                    </button>
-                  )}
-                  {message.reactions.count > 0 && activeMessageId !== message.id && (
-                    <div className="text-xs text-zinc-500">
-                      ❤️ {message.reactions.count}
-                    </div>
-                  )}
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleReaction(message.id)
+                    }}
+                    className={`flex items-center justify-center p-1.5 rounded-full transition-all ${
+                      message.reactions.hasReacted
+                        ? 'bg-red-400/20 text-red-400 scale-110'
+                        : 'hover:bg-zinc-800 text-zinc-500 hover:text-red-400'
+                    }`}
+                  >
+                    <span className="text-base">❤️</span>
+                    {message.reactions.count > 0 && (
+                      <span className="ml-1 text-xs">{message.reactions.count}</span>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
             <div ref={messagesEndRef} />
-          </div>
+          </>
         )}
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} className="p-4 border-t border-zinc-800 flex-shrink-0">
+      <form onSubmit={handleSendMessage} className="p-4 border-t border-zinc-800">
         <div className="flex gap-2">
           <input
             ref={inputRef}
