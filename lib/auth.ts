@@ -197,12 +197,26 @@ export function useAuth() {
       setLoading(true);
       setError(null);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
+
+      // Wait for session to be established
+      if (data.session) {
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.session.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        setUser(profile);
+      }
+
     } catch (err: any) {
       console.error('Sign in error:', err);
       setError(err.message);

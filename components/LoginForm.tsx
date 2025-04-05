@@ -20,10 +20,9 @@ export default function LoginForm() {
 
     try {
       await signIn(email, password);
-      router.push('/');
+      router.replace('/');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
-    } finally {
       setLoading(false);
     }
   };
