@@ -10,9 +10,14 @@ export default function LoginPage() {
   const { user, loading, error } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    console.log('Login page state:', { user, loading, error });
+  }, [user, loading, error]);
+
   // Redirect if already signed in
   useEffect(() => {
     if (user && !loading) {
+      console.log('User is signed in, redirecting to home...');
       router.push('/');
     }
   }, [user, loading, router]);
@@ -30,8 +35,9 @@ export default function LoginPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center min-h-[40vh]">
-            <div className="animate-pulse text-zinc-400">Loading...</div>
+          <div className="flex flex-col items-center justify-center min-h-[40vh]">
+            <div className="animate-pulse text-zinc-400 mb-2">Loading...</div>
+            <p className="text-sm text-zinc-500">Checking authentication status</p>
           </div>
         ) : (
           <>

@@ -34,6 +34,14 @@ const getSiteUrl = () => {
   return `https://${domain}`;
 };
 
+console.log('Initializing Supabase client:', {
+  url: supabaseUrl,
+  domain,
+  isLocalhost,
+  isVercelDomain,
+  siteUrl: getSiteUrl()
+});
+
 export const supabase = createBrowserClient(
   supabaseUrl,
   supabaseAnonKey,
@@ -42,10 +50,12 @@ export const supabase = createBrowserClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'pkce'
+      flowType: 'pkce',
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      storageKey: `sb-${domain}-auth-token`
     },
     cookieOptions: {
-      name: 'sb-session',
+      name: `sb-${domain}-auth-token`,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',

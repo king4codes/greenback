@@ -29,16 +29,19 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
+    console.log('Auth hook initialized, checking session...');
 
     // Check for existing session
     const checkUser = async () => {
       try {
         if (!mounted) return;
+        console.log('Starting session check...');
         setLoading(true);
         setError(null);
 
         // Get current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('Session check result:', { session: !!session, error: sessionError });
         
         if (sessionError) {
           throw new Error(`Session error: ${sessionError.message}`);
@@ -47,6 +50,7 @@ export function useAuth() {
         if (!mounted) return;
 
         if (session?.user) {
+          console.log('Session found, fetching user profile...');
           // Get user profile data
           const { data: profile, error: profileError } = await supabase
             .from('users')
@@ -55,9 +59,11 @@ export function useAuth() {
             .single();
 
           if (!mounted) return;
+          console.log('Profile fetch result:', { profile: !!profile, error: profileError });
 
           if (profileError) {
             if (profileError.code === 'PGRST116') {
+              console.log('No profile found, creating new profile...');
               // No profile found, create one
               const { data: newProfile, error: createError } = await supabase
                 .from('users')
@@ -77,16 +83,19 @@ export function useAuth() {
               }
 
               if (!mounted) return;
+              console.log('New profile created');
               setUser(newProfile);
             } else {
               throw new Error(`Profile error: ${profileError.message}`);
             }
           } else {
             if (!mounted) return;
+            console.log('Existing profile found');
             setUser(profile);
           }
         } else {
           if (!mounted) return;
+          console.log('No session found');
           setUser(null);
         }
       } catch (err: any) {
@@ -96,6 +105,7 @@ export function useAuth() {
         setUser(null);
       } finally {
         if (!mounted) return;
+        console.log('Finishing session check, setting loading to false');
         setLoading(false);
       }
     };
@@ -106,10 +116,12 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
         if (!mounted) return;
+        console.log('Auth state changed:', { event, hasSession: !!session });
         
         try {
           setLoading(true);
           if (event === 'SIGNED_IN' && session?.user) {
+            console.log('User signed in, fetching profile...');
             // Get user profile
             const { data: profile, error: profileError } = await supabase
               .from('users')
@@ -118,9 +130,11 @@ export function useAuth() {
               .single();
 
             if (!mounted) return;
+            console.log('Profile fetch result:', { profile: !!profile, error: profileError });
 
             if (profileError) {
               if (profileError.code === 'PGRST116') {
+                console.log('No profile found, creating new profile...');
                 // No profile found, create one
                 const { data: newProfile, error: createError } = await supabase
                   .from('users')
@@ -140,12 +154,14 @@ export function useAuth() {
                 }
 
                 if (!mounted) return;
+                console.log('New profile created');
                 setUser(newProfile);
               } else {
                 throw new Error(`Profile error: ${profileError.message}`);
               }
             } else {
               if (!mounted) return;
+              console.log('Updating last login...');
               // Update last login
               await supabase
                 .from('users')
@@ -156,6 +172,7 @@ export function useAuth() {
             }
           } else if (event === 'SIGNED_OUT') {
             if (!mounted) return;
+            console.log('User signed out');
             setUser(null);
           }
         } catch (err: any) {
@@ -165,12 +182,14 @@ export function useAuth() {
           setUser(null);
         } finally {
           if (!mounted) return;
+          console.log('Finishing auth state change, setting loading to false');
           setLoading(false);
         }
       }
     );
 
     return () => {
+      console.log('Auth hook cleanup');
       mounted = false;
       subscription.unsubscribe();
     };
