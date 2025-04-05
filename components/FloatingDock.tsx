@@ -10,7 +10,8 @@ import {
   Paintbrush, 
   Building2, 
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  Settings
 } from 'lucide-react'
 
 export default function FloatingDock() {
@@ -87,6 +88,16 @@ export default function FloatingDock() {
         )}>
           <MessageSquare className="w-5 h-5" />
           <span className="text-xs">Chat</span>
+        </Link>
+
+        <Link href="/settings" className={cn(
+          "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors",
+          pathname === '/settings'
+            ? "text-green-400 bg-zinc-800"
+            : "text-zinc-400 hover:text-green-400 hover:bg-zinc-800/50"
+        )}>
+          <Settings className="w-5 h-5" />
+          <span className="text-xs">Settings</span>
         </Link>
       </div>
     </div>

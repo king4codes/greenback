@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 
 export default function SettingsForm() {
@@ -12,6 +12,13 @@ export default function SettingsForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeForm, setActiveForm] = useState<'profile' | 'email'>('profile');
+
+  // Update display name when user changes
+  useEffect(() => {
+    if (user?.display_name) {
+      setDisplayName(user.display_name);
+    }
+  }, [user]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
