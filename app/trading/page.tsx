@@ -116,7 +116,7 @@ export default function TradingPage() {
             id="dextools-widget"
             title="DEXTools Trading Chart"
             width="100%"
-            height="500"
+            height="800"
             src="https://www.dextools.io/widget-chart/en/solana/pe-light/Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE?theme=dark&chartType=2&chartResolution=30&drawingToolbars=false"
             className="border-0"
           />
@@ -128,7 +128,7 @@ export default function TradingPage() {
             id="dextswap-aggregator-widget"
             title="DEXTswap Aggregator"
             width="100%"
-            height="500"
+            height="800"
             src="https://www.dextools.io/widget-aggregator/en/swap/solana/9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump"
             className="border-0"
           />
