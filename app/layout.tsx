@@ -5,6 +5,7 @@ import { SolanaWalletProvider } from '@/lib/solana/WalletProvider';
 import ClientLayout from '@/components/ClientLayout';
 import Script from 'next/script';
 import { inter } from '@/lib/fonts';
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: 'Inside Baron',
@@ -27,6 +28,7 @@ export default function RootLayout({
             <ClientLayout>{children}</ClientLayout>
           </SolanaWalletProvider>
         </Providers>
+        <Toaster theme="dark" position="top-right" />
       </body>
     </html>
   );
