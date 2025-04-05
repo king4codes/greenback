@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Send, RefreshCw } from 'lucide-react'
+import { Send, RefreshCw, Heart } from 'lucide-react'
 import { useRealtimeChat } from '@/hooks/use-realtime-chat'
 
 interface RealtimeChatProps {
@@ -184,22 +184,29 @@ export function RealtimeChat({ roomName, username }: RealtimeChatProps) {
                     {message.content}
                   </div>
                   
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleReaction(message.id)
-                    }}
-                    className={`flex items-center justify-center p-1.5 rounded-full transition-all ${
-                      message.reactions.hasReacted
-                        ? 'bg-red-400/20 text-red-400 scale-110'
-                        : 'hover:bg-zinc-800 text-zinc-500 hover:text-red-400'
-                    }`}
-                  >
-                    <span className="text-base">❤️</span>
-                    {message.reactions.count > 0 && (
-                      <span className="ml-1 text-xs">{message.reactions.count}</span>
-                    )}
-                  </button>
+                  {/* Reaction button - only visible on hover or when there are reactions */}
+                  <div className={`flex items-center transition-opacity ${
+                    activeMessageId === message.id || message.reactions.count > 0 || message.reactions.hasReacted
+                      ? 'opacity-100'
+                      : 'opacity-0 group-hover:opacity-100'
+                  }`}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleReaction(message.id)
+                      }}
+                      className={`flex items-center justify-center p-1.5 rounded-full transition-all ${
+                        message.reactions.hasReacted
+                          ? 'bg-red-400/20 text-red-400'
+                          : 'hover:bg-zinc-800 text-zinc-500 hover:text-red-400'
+                      }`}
+                    >
+                      <Heart size={14} className={message.reactions.hasReacted ? 'fill-current' : ''} />
+                      {message.reactions.count > 0 && (
+                        <span className="ml-1 text-xs">{message.reactions.count}</span>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
