@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
+import { supabase } from '@/lib/supabase-browser'
 
 export default function SettingsPage() {
   const { user, loading } = useAuth()
@@ -20,11 +21,17 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/auth/signout')
-      if (response.ok) {
-        const baseUrl = window.location.origin || 'https://greenback-eight.vercel.app'
-        window.location.href = `${baseUrl}/login`
-      }
+      // First sign out from Supabase client
+      await supabase.auth.signOut()
+      
+      // Then call our API to clear cookies
+      await fetch('/api/auth/signout', {
+        method: 'GET',
+        credentials: 'include'
+      })
+
+      // Redirect to login
+      window.location.href = '/login'
     } catch (error) {
       console.error('Error signing out:', error)
     }

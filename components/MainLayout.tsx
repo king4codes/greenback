@@ -12,6 +12,7 @@ import { useWalletStatus, useSolanaBalance } from '@/lib/solana/hooks'
 import WalletConnect from './WalletConnect'
 import { useAchievements } from '@/hooks/use-achievements'
 import { useAuth } from '@/lib/auth'
+import { supabase } from '@/lib/supabase-browser'
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -65,11 +66,17 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 onClick={async () => {
                   if (item.name === 'Logout') {
                     try {
-                      const response = await fetch('/api/auth/signout')
-                      if (response.ok) {
-                        const baseUrl = window.location.origin || 'https://greenback-eight.vercel.app'
-                        window.location.href = `${baseUrl}/login`
-                      }
+                      // First sign out from Supabase client
+                      await supabase.auth.signOut()
+                      
+                      // Then call our API to clear cookies
+                      await fetch('/api/auth/signout', {
+                        method: 'GET',
+                        credentials: 'include'
+                      })
+
+                      // Redirect to login
+                      window.location.href = '/login'
                     } catch (error) {
                       console.error('Error signing out:', error)
                     }

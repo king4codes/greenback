@@ -1,19 +1,22 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase-browser'
 
 export default function LogoutButton() {
-  const router = useRouter()
-
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/auth/signout')
-      if (response.ok) {
-        // Get the current origin or use the production URL as fallback
-        const baseUrl = window.location.origin || 'https://greenback-eight.vercel.app'
-        window.location.href = `${baseUrl}/login`
-      }
+      // First sign out from Supabase client
+      await supabase.auth.signOut()
+      
+      // Then call our API to clear cookies
+      await fetch('/api/auth/signout', {
+        method: 'GET',
+        credentials: 'include'
+      })
+
+      // Redirect to login
+      window.location.href = '/login'
     } catch (error) {
       console.error('Error signing out:', error)
     }
