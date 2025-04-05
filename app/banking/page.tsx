@@ -10,6 +10,7 @@ import { useBanking } from '@/hooks/use-banking'
 import { useSolanaSwap } from '@/hooks/use-solana-swap'
 import { useTransactionHistory } from '@/hooks/useTransactionHistory'
 import { toast } from 'sonner'
+import { useSolanaBalance } from '@/lib/solana/hooks'
 
 export default function Banking() {
   const { connected } = useWallet()
@@ -19,6 +20,7 @@ export default function Banking() {
   const { handleDeposit, handleWithdraw, handleLend, handleBorrow, loading, error } = useBanking()
   const { handleSwap, loading: swapLoading, error: swapError } = useSolanaSwap()
   const { refetch: refetchTransactions } = useTransactionHistory()
+  const { balance } = useSolanaBalance()
 
   const handleTransaction = async () => {
     const numAmount = parseFloat(amount)
@@ -27,35 +29,18 @@ export default function Banking() {
       return
     }
 
-    if (selectedTab === 'deposit' && asset === 'SOL') {
-      const result = await handleSwap(numAmount)
-      if (result) {
-        toast.success(`Successfully swapped ${numAmount} SOL for ${result.gbcAmount} GBC`)
-        setAmount('')
-        refetchTransactions()
-      } else if (swapError) {
-        toast.error(swapError)
-      }
-    } else {
-      let success = false
-      switch (selectedTab) {
-        case 'deposit':
-          success = await handleDeposit(numAmount, asset) || false
-          break
-        case 'withdraw':
-          success = await handleWithdraw(numAmount, asset) || false
-          break
-        case 'lend':
-          success = await handleLend(numAmount, asset) || false
-          break
-        case 'borrow':
-          success = await handleBorrow(numAmount, asset) || false
-          break
-      }
+    if (balance && numAmount > balance) {
+      toast.error('Insufficient SOL balance')
+      return
+    }
 
-      if (success) {
-        setAmount('')
-      }
+    const result = await handleSwap(numAmount)
+    if (result) {
+      toast.success(`Successfully sent ${numAmount} SOL`)
+      setAmount('')
+      refetchTransactions()
+    } else if (swapError) {
+      toast.error(swapError)
     }
   }
 
@@ -75,7 +60,7 @@ export default function Banking() {
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-3">
             <Building2 className="w-6 h-6 text-green-400" />
-            <h1 className="font-garamond text-2xl text-green-400">GBC Banking</h1>
+            <h1 className="font-garamond text-2xl text-green-400">Send SOL</h1>
           </div>
           <WalletConnect />
         </div>
@@ -84,12 +69,10 @@ export default function Banking() {
           {/* Balance Card */}
           <div className="md:col-span-2 bg-zinc-800/50 rounded-lg p-3">
             <div className="space-y-2 text-center">
-              <h2 className="font-garamond text-lg text-zinc-400">Your Balance</h2>
+              <h2 className="font-garamond text-lg text-zinc-400">Your SOL Balance</h2>
               <div className="text-2xl font-garamond text-green-400">
-                1,234 $GBC
+                {balance?.toFixed(4) || '0.0000'} SOL
               </div>
-              <div className="text-sm text-zinc-300">≈ $123.40 USD</div>
-              <div className="text-xs text-zinc-400">Next Reward: 23d 12h 45m</div>
             </div>
           </div>
 
@@ -206,20 +189,10 @@ export default function Banking() {
           <div className="md:col-span-8 bg-zinc-800/50 rounded-lg p-4">
             {selectedTab === 'deposit' && (
               <div className="space-y-4">
-                <h2 className="font-garamond text-xl text-green-400 text-center">Deposit SOL for GBC</h2>
+                <h2 className="font-garamond text-xl text-green-400 text-center">Send SOL</h2>
                 <div className="max-w-md mx-auto space-y-3">
                   <div className="space-y-2">
-                    <label className="block text-base text-zinc-300">Select Asset</label>
-                    <select 
-                      value={asset}
-                      onChange={(e) => setAsset(e.target.value)}
-                      className="w-full px-3 py-2 bg-zinc-800 rounded-lg text-zinc-300 text-base"
-                    >
-                      <option value="SOL">SOL</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-base text-zinc-300">Amount</label>
+                    <label className="block text-base text-zinc-300">Amount to Send</label>
                     <div className="relative">
                       <input
                         type="number"
@@ -231,7 +204,7 @@ export default function Banking() {
                         min="0"
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">
-                        ≈ {getEstimatedGBC()} $GBC
+                        SOL
                       </div>
                     </div>
                   </div>
@@ -245,14 +218,14 @@ export default function Banking() {
                     )}
                     disabled={!connected || swapLoading}
                   >
-                    {swapLoading ? 'Processing...' : connected ? 'Swap SOL for GBC' : 'Connect Wallet'}
+                    {swapLoading ? 'Processing...' : connected ? 'Send SOL' : 'Connect Wallet'}
                   </button>
                   {swapError && (
                     <div className="text-red-400 text-sm text-center">{swapError}</div>
                   )}
                   <div className="text-xs text-zinc-400 text-center space-y-1">
-                    <p>1 SOL = $20 USD = 200 $GBC</p>
                     <p>Sending to: B3puSCahSLE3ntRwA19en2u6engpVRbi2fcxvvWRag48</p>
+                    <p>Make sure you have enough SOL to cover the transaction fee</p>
                   </div>
                 </div>
               </div>
