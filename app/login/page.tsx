@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, error } = useAuth();
   const router = useRouter();
 
   // Redirect if already signed in
@@ -16,16 +16,6 @@ export default function LoginPage() {
       router.push('/');
     }
   }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-pulse text-zinc-400">Loading...</div>
-        </div>
-      </MainLayout>
-    );
-  }
 
   return (
     <MainLayout>
@@ -39,19 +29,33 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="bg-zinc-800/50 rounded-lg p-8">
-          <div className="flex flex-col items-center">
-            <div className="w-full max-w-sm">
-              <LoginForm />
-            </div>
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[40vh]">
+            <div className="animate-pulse text-zinc-400">Loading...</div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="bg-zinc-800/50 rounded-lg p-8">
+              <div className="flex flex-col items-center">
+                <div className="w-full max-w-sm">
+                  <LoginForm />
+                </div>
+              </div>
+            </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-sm text-zinc-500">
-            By signing in, you agree to our Terms of Service and Privacy Policy
-          </p>
-        </div>
+            <div className="mt-8 text-center">
+              <p className="text-sm text-zinc-500">
+                By signing in, you agree to our Terms of Service and Privacy Policy
+              </p>
+            </div>
+          </>
+        )}
+
+        {error && (
+          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p className="text-red-500 text-sm text-center">{error}</p>
+          </div>
+        )}
       </div>
     </MainLayout>
   );

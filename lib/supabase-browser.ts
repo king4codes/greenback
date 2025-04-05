@@ -12,22 +12,16 @@ declare global {
   }
 }
 
-// Use window.env in browser or process.env in Node.js
-const supabaseUrl = typeof window !== 'undefined' 
-  ? window.env?.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  : process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-const supabaseAnonKey = typeof window !== 'undefined'
-  ? window.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables');
+  throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
 }
 
 export const supabase = createBrowserClient(
-  supabaseUrl!,
-  supabaseAnonKey!,
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       persistSession: true,

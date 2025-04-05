@@ -28,9 +28,12 @@ export function useAuth() {
   const supabase = createClient();
 
   useEffect(() => {
+    let mounted = true;
+
     // Check for existing session
     const checkUser = async () => {
       try {
+        if (!mounted) return;
         setLoading(true);
         setError(null);
 
@@ -41,6 +44,8 @@ export function useAuth() {
           throw new Error(`Session error: ${sessionError.message}`);
         }
 
+        if (!mounted) return;
+
         if (session?.user) {
           // Get user profile data
           const { data: profile, error: profileError } = await supabase
@@ -48,6 +53,8 @@ export function useAuth() {
             .select('*')
             .eq('id', session.user.id)
             .single();
+
+          if (!mounted) return;
 
           if (profileError) {
             if (profileError.code === 'PGRST116') {
@@ -69,20 +76,26 @@ export function useAuth() {
                 throw new Error(`Error creating profile: ${createError.message}`);
               }
 
+              if (!mounted) return;
               setUser(newProfile);
             } else {
               throw new Error(`Profile error: ${profileError.message}`);
             }
           } else {
+            if (!mounted) return;
             setUser(profile);
           }
         } else {
+          if (!mounted) return;
           setUser(null);
         }
       } catch (err: any) {
+        if (!mounted) return;
         console.error('Auth error:', err);
         setError(err.message);
+        setUser(null);
       } finally {
+        if (!mounted) return;
         setLoading(false);
       }
     };
@@ -92,7 +105,10 @@ export function useAuth() {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted) return;
+        
         try {
+          setLoading(true);
           if (event === 'SIGNED_IN' && session?.user) {
             // Get user profile
             const { data: profile, error: profileError } = await supabase
@@ -100,6 +116,8 @@ export function useAuth() {
               .select('*')
               .eq('id', session.user.id)
               .single();
+
+            if (!mounted) return;
 
             if (profileError) {
               if (profileError.code === 'PGRST116') {
@@ -121,11 +139,13 @@ export function useAuth() {
                   throw new Error(`Error creating profile: ${createError.message}`);
                 }
 
+                if (!mounted) return;
                 setUser(newProfile);
               } else {
                 throw new Error(`Profile error: ${profileError.message}`);
               }
             } else {
+              if (!mounted) return;
               // Update last login
               await supabase
                 .from('users')
@@ -135,16 +155,23 @@ export function useAuth() {
               setUser(profile);
             }
           } else if (event === 'SIGNED_OUT') {
+            if (!mounted) return;
             setUser(null);
           }
         } catch (err: any) {
+          if (!mounted) return;
           console.error('Auth state change error:', err);
           setError(err.message);
+          setUser(null);
+        } finally {
+          if (!mounted) return;
+          setLoading(false);
         }
       }
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [supabase]);
