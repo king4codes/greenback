@@ -18,6 +18,18 @@ export default function SettingsPage() {
     }
   }, [user, loading, router])
 
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/signout')
+      if (response.ok) {
+        const baseUrl = window.location.origin || 'https://greenback-eight.vercel.app'
+        window.location.href = `${baseUrl}/login`
+      }
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
   if (loading) {
     return (
       <MainLayout>
@@ -56,13 +68,13 @@ export default function SettingsPage() {
               <h3 className="text-red-400 font-medium mb-1">Logout</h3>
               <p className="text-zinc-400 text-sm">Sign out of your account</p>
             </div>
-            <a
-              href="/api/auth/signout"
+            <button
+              onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors"
             >
               <LogOut className="w-4 h-4" />
               <span>Logout</span>
-            </a>
+            </button>
           </div>
         </div>
       </div>
