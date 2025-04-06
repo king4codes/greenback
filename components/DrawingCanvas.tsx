@@ -271,10 +271,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     if (!ctx) return
 
     try {
-      // First, broadcast clear event to all users
-      clearCanvas()
-
-      // Then delete all drawings from the database for this room
+      // First, delete all drawings from the database for this room
       const { error: deleteError } = await supabase
         .from('drawing_data')
         .delete()
@@ -284,30 +281,32 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         throw new Error(deleteError.message)
       }
 
-      // Also store a clear event in the database to track the last clear
-      const { error: clearEventError } = await supabase
-        .from('canvas_state')
-        .upsert({
-          room_name: roomName,
-          last_cleared_at: new Date().toISOString(),
-          cleared_by: username
-        })
-
-      if (clearEventError) {
-        console.error('Error storing clear event:', clearEventError)
-      }
-
-      // Clear the canvas
+      // Clear local canvas
       const scale = window.devicePixelRatio || 1
       ctx.fillStyle = '#e8f5e9'
       ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
       
       // Clear local state
       setSavedDrawings([])
+
+      // Broadcast clear event to all users
+      clearCanvas()
+
+      // Store the clear timestamp in a separate table
+      const { error: clearError } = await supabase
+        .from('canvas_clear_events')
+        .insert({
+          room_name: roomName,
+          cleared_at: new Date().toISOString()
+        })
+
+      if (clearError) {
+        console.error('Error storing clear event:', clearError)
+      }
     } catch (error) {
       console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
     }
-  }, [clearCanvas, roomName, username])
+  }, [clearCanvas, roomName])
 
   // Load drawings once and set up real-time subscription
   useEffect(() => {
@@ -315,50 +314,54 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       try {
         setIsLoading(true)
         
-        // First check if there's a clear event after the last drawing
-        const { data: clearState, error: clearStateError } = await supabase
-          .from('canvas_state')
-          .select('last_cleared_at')
+        // First get the latest clear event timestamp
+        const { data: clearEvent, error: clearError } = await supabase
+          .from('canvas_clear_events')
+          .select('cleared_at')
           .eq('room_name', roomName)
+          .order('cleared_at', { ascending: false })
+          .limit(1)
           .single()
 
-        if (clearStateError && clearStateError.code !== 'PGRST116') { // PGRST116 is "not found" error
-          console.error('Error checking clear state:', clearStateError)
+        if (clearError && clearError.code !== 'PGRST116') {
+          console.error('Error checking clear events:', clearError)
         }
 
-        const lastClearedAt = clearState?.last_cleared_at
+        const lastClearTime = clearEvent?.cleared_at
 
-        // Only fetch drawings that were made after the last clear
-        const { data, error: supabaseError } = await supabase
+        // Only fetch drawings created after the last clear event
+        const { data, error: drawingsError } = await supabase
           .from('drawing_data')
-          .select('points, created_at')
+          .select('*')
           .eq('room_name', roomName)
-          .order('created_at', { ascending: true });
+          .order('created_at', { ascending: true })
 
-        if (supabaseError) {
-          throw new Error(supabaseError.message)
+        if (drawingsError) {
+          throw new Error(drawingsError.message)
         }
 
-        // Filter out drawings made before the last clear
-        const filteredData = lastClearedAt 
-          ? data?.filter(drawing => drawing.created_at > lastClearedAt)
+        // Filter drawings to only show those after the last clear
+        const filteredDrawings = lastClearTime
+          ? data.filter(drawing => drawing.created_at > lastClearTime)
           : data
 
-        // Only set and draw if we have data after filtering
-        if (filteredData && filteredData.length > 0) {
-          setSavedDrawings(filteredData)
-          // Redraw all loaded drawings
-          const canvas = canvasRef.current
-          if (!canvas) return
+        // Clear canvas first
+        const canvas = canvasRef.current
+        if (!canvas) return
 
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
 
-          const scale = window.devicePixelRatio || 1
-          ctx.fillStyle = '#e8f5e9'
-          ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+        const scale = window.devicePixelRatio || 1
+        ctx.fillStyle = '#e8f5e9'
+        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
 
-          filteredData.forEach(drawing => {
+        // Set state and redraw filtered drawings
+        setSavedDrawings(filteredDrawings)
+
+        // Redraw filtered drawings
+        if (filteredDrawings.length > 0) {
+          filteredDrawings.forEach(drawing => {
             const points = drawing.points
             if (!Array.isArray(points) || points.length < 1) return
 
@@ -397,18 +400,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
               ctx.stroke()
             }
           })
-        } else {
-          // If no data or all drawings were before the last clear, ensure canvas is clear
-          const canvas = canvasRef.current
-          if (!canvas) return
-
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return
-
-          const scale = window.devicePixelRatio || 1
-          ctx.fillStyle = '#e8f5e9'
-          ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-          setSavedDrawings([])
         }
       } catch (error) {
         console.error('Error loading drawings:', error)
