@@ -199,7 +199,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         const points = payload.points
         if (!Array.isArray(points) || points.length < 2) return
 
-        // Draw the new points directly
+        // Draw the new points
         ctx.globalAlpha = points[0].opacity
         ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
         ctx.lineWidth = points[0].size
@@ -214,13 +214,14 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         }
         ctx.stroke()
 
-        // Update state without triggering redraw
-        setSavedDrawings(prev => [...prev, { points }])
+        // Update state
+        setSavedDrawings(prev => [...prev, { points: [...points] }])
       }
     }).on('broadcast', { event: 'clear' }, () => {
       setSavedDrawings([])
+      const scale = window.devicePixelRatio || 1
       ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
     }).subscribe()
 
     return () => {
@@ -228,8 +229,12 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
   }, [roomName])
 
+  // Redraw canvas when savedDrawings changes or canvas is resized
+  useEffect(() => {
+    redrawCanvas()
+  }, [savedDrawings, redrawCanvas])
+
   const clearCanvasCompletely = useCallback(() => {
-    setSavedDrawings([])
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -237,12 +242,10 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     if (!ctx) return
 
     const scale = window.devicePixelRatio || 1
-    const width = canvas.width / scale
-    const height = canvas.height / scale
-
     ctx.fillStyle = '#e8f5e9'
-    ctx.fillRect(0, 0, width, height)
+    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
     
+    setSavedDrawings([])
     clearCanvas()
   }, [clearCanvas])
 
@@ -357,10 +360,12 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     if (isDrawing) {
       setIsDrawing(false)
       if (pointsRef.current.length > 0) {
+        // First update local state
+        setSavedDrawings(prev => [...prev, { points: [...pointsRef.current] }])
+        // Then broadcast to other users
         broadcastDrawing(pointsRef.current)
-        setSavedDrawings(prev => [...prev, { points: pointsRef.current }])
+        pointsRef.current = []
       }
-      pointsRef.current = []
     }
   }
 
