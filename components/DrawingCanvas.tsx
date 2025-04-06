@@ -54,15 +54,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     tool: 'brush',
     text: ''
   })
-  const pointsRef = useRef<Array<{
-    x: number
-    y: number
-    color: string
-    size: number
-    opacity: number
-    tool: 'brush' | 'eraser' | 'text' | 'spray'
-    timestamp: number
-  }>>([])
+  const [currentPath, setCurrentPath] = useState<DrawPoint[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeUsers, setActiveUsers] = useState<string[]>([])
@@ -285,19 +277,47 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     return { x, y }
   }
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const { x, y } = getCanvasCoordinates(e)
-    setIsDrawing(true)
+  const drawPath = useCallback((ctx: CanvasRenderingContext2D, points: DrawPoint[]) => {
+    if (!points.length) return;
     
-    pointsRef.current = [{
+    ctx.globalAlpha = points[0].opacity;
+    ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color;
+    ctx.lineWidth = points[0].size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+
+    for (let i = 1; i < points.length; i++) {
+      const xc = (points[i].x + points[i - 1].x) / 2;
+      const yc = (points[i].y + points[i - 1].y) / 2;
+      ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+    }
+
+    if (points.length > 1) {
+      const lastPoint = points[points.length - 1];
+      ctx.lineTo(lastPoint.x, lastPoint.y);
+    }
+
+    ctx.stroke();
+  }, []);
+
+  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    setIsDrawing(true);
+    setCurrentPath([{
       x,
       y,
       ...tools,
       timestamp: Date.now()
-    }]
+    }]);
 
     // Draw initial mark
     const ctx = canvas.getContext('2d')
@@ -319,55 +339,113 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         })
       }
     }
-  }
+  }, [tools, earnAchievement, sprayEffect, user])
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
 
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    const { x, y } = getCanvasCoordinates(e)
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
-    if (tools.tool === 'spray') {
-      sprayEffect(ctx, x, y)
-    } else {
-      ctx.globalAlpha = tools.opacity
-      ctx.strokeStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
-      ctx.lineWidth = tools.size
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-
-      const lastPoint = pointsRef.current[pointsRef.current.length - 1]
-      ctx.beginPath()
-      ctx.moveTo(lastPoint.x, lastPoint.y)
-      ctx.lineTo(x, y)
-      ctx.stroke()
-    }
-
-    pointsRef.current.push({
+    const newPoint = {
       x,
       y,
       ...tools,
       timestamp: Date.now()
-    })
-  }
+    };
 
-  const stopDrawing = () => {
-    if (isDrawing) {
-      setIsDrawing(false)
-      if (pointsRef.current.length > 0) {
-        // First update local state
-        setSavedDrawings(prev => [...prev, { points: [...pointsRef.current] }])
-        // Then broadcast to other users
-        broadcastDrawing(pointsRef.current)
-        pointsRef.current = []
+    setCurrentPath(prev => {
+      const updatedPath = [...prev, newPoint];
+      
+      // Draw only the new segment
+      if (updatedPath.length > 1) {
+        drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
+      }
+      
+      return updatedPath;
+    });
+
+    // Update cursor position for real-time collaboration
+    updateCursor(x, y);
+  }, [isDrawing, tools, drawPath, updateCursor]);
+
+  // Add touch support
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    setIsDrawing(true);
+    setCurrentPath([{
+      x,
+      y,
+      ...tools,
+      timestamp: Date.now()
+    }]);
+  }, [tools]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (!isDrawing) return;
+
+    const touch = e.touches[0];
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    const newPoint = {
+      x,
+      y,
+      ...tools,
+      timestamp: Date.now()
+    };
+
+    setCurrentPath(prev => {
+      const updatedPath = [...prev, newPoint];
+      if (updatedPath.length > 1) {
+        drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
+      }
+      return updatedPath;
+    });
+
+    updateCursor(x, y);
+  }, [isDrawing, tools, drawPath, updateCursor]);
+
+  const finishDrawing = useCallback(() => {
+    if (!isDrawing) return;
+
+    setIsDrawing(false);
+    
+    // Save the completed path
+    if (currentPath.length > 1) {
+      setSavedDrawings(prev => [...prev, { points: currentPath }]);
+      broadcastDrawing(currentPath);
+      
+      if (onDraw) {
+        onDraw(currentPath);
       }
     }
-  }
+    
+    setCurrentPath([]);
+  }, [isDrawing, currentPath, broadcastDrawing, onDraw]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (tools.tool === 'text') {
@@ -398,72 +476,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
     setTextPosition(null)
     setTools(prev => ({ ...prev, text: '' }))
-  }
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
-    if (!isDrawing) return
-    
-    const fakeEvent = {
-      clientX: e.clientX,
-      clientY: e.clientY
-    } as React.MouseEvent<HTMLCanvasElement>
-    draw(fakeEvent)
-    
-    // Update cursor position for other users
-    updateCursor(e.clientX, e.clientY)
-  }, [isDrawing, draw, updateCursor])
-
-  const throttledMouseMove = useCallback(
-    throttle(handleMouseMove, 16), // Approximately 60fps
-    [handleMouseMove]
-  )
-
-  const handleMouseUp = useCallback(() => {
-    if (isDrawing) {
-      stopDrawing()
-    }
-  }, [isDrawing, stopDrawing])
-
-  // Update global mouse event handlers
-  useEffect(() => {
-    if (isDrawing) {
-      window.addEventListener('mousemove', throttledMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-    }
-
-    return () => {
-      window.removeEventListener('mousemove', throttledMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDrawing, throttledMouseMove, handleMouseUp])
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    startDrawing(e)
-  }
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
-    const touch = e.touches[0]
-    const fakeEvent = {
-      clientX: touch.clientX,
-      clientY: touch.clientY
-    } as React.MouseEvent<HTMLCanvasElement>
-    startDrawing(fakeEvent)
-  }
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
-    const touch = e.touches[0]
-    const fakeEvent = {
-      clientX: touch.clientX,
-      clientY: touch.clientY
-    } as React.MouseEvent<HTMLCanvasElement>
-    draw(fakeEvent)
-  }
-
-  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
-    stopDrawing()
   }
 
   return (
@@ -653,13 +665,14 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
             <div className="absolute inset-6 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
               <canvas
                 ref={canvasRef}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onClick={handleCanvasClick}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={finishDrawing}
+                onMouseLeave={finishDrawing}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
+                onTouchEnd={finishDrawing}
+                onClick={handleCanvasClick}
                 className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
               />
 
