@@ -68,6 +68,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
   const [activeUsers, setActiveUsers] = useState<string[]>([])
   const [userColor] = useState(() => `hsl(${Math.random() * 360}, 70%, 50%)`)
   const [savedDrawings, setSavedDrawings] = useState<Array<{ points: DrawPoint[] }>>([])
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const { cursors, updateCursor, broadcastDrawing, clearCanvas, isConnected } = useRealtimeDrawing(roomName, username)
 
@@ -150,8 +151,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
   // Update loadDrawings effect to store drawings in state
   useEffect(() => {
     const loadDrawings = async () => {
-      const canvas = canvasRef.current
-      if (!canvas) return
+      if (!canvasRef.current) return
 
       try {
         setIsLoading(true)
@@ -171,16 +171,29 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           setSavedDrawings(data)
           redrawCanvas()
         }
-
-        setIsLoading(false)
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to load drawings')
+        console.error('Error loading drawings:', error)
+      } finally {
         setIsLoading(false)
+        setIsInitialized(true)
       }
     }
 
     loadDrawings()
   }, [roomName, redrawCanvas])
+
+  // Initialize canvas size and setup
+  useEffect(() => {
+    if (!isInitialized) return
+    resizeCanvas()
+    const debouncedResize = debounce(resizeCanvas, 250)
+    window.addEventListener('resize', debouncedResize)
+
+    return () => {
+      window.removeEventListener('resize', debouncedResize)
+    }
+  }, [resizeCanvas, isInitialized])
 
   // Listen for real-time drawing updates
   useEffect(() => {
@@ -219,16 +232,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     clearCanvas()
   }, [clearCanvas])
 
-  useEffect(() => {
-    resizeCanvas()
-    const debouncedResize = debounce(resizeCanvas, 250)
-    window.addEventListener('resize', debouncedResize)
-
-    return () => {
-      window.removeEventListener('resize', debouncedResize)
-    }
-  }, [resizeCanvas])
-
   const sprayEffect = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     const density = tools.size * 2; // More particles for larger sizes
     const radius = tools.size;
@@ -266,82 +269,71 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     return { x: x / scale, y: y / scale } // Convert back to display coordinates
   }
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: { clientX: number; clientY: number }) => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const { x, y } = getCanvasCoordinates(e)
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
     setIsDrawing(true)
-    
     pointsRef.current = [{
       x,
       y,
-      ...tools,
+      color: tools.color,
+      size: tools.size,
+      opacity: tools.opacity,
+      tool: tools.tool,
       timestamp: Date.now()
     }]
 
-    // Draw initial mark
     const ctx = canvas.getContext('2d')
     if (ctx) {
-      if (tools.tool === 'spray') {
-        sprayEffect(ctx, x, y)
-      } else {
-        ctx.globalAlpha = tools.opacity
-        ctx.fillStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
-        ctx.beginPath()
-        ctx.arc(x, y, tools.size / 2, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      // Track achievement when user starts drawing
-      if (user?.id) {
-        earnAchievement('artist').catch(err => {
-          console.error('Error earning artist achievement:', err)
-        })
-      }
-    }
-  }
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const { x, y } = getCanvasCoordinates(e)
-
-    if (tools.tool === 'spray') {
-      sprayEffect(ctx, x, y)
-    } else {
       ctx.globalAlpha = tools.opacity
       ctx.strokeStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
       ctx.lineWidth = tools.size
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
-
-      const lastPoint = pointsRef.current[pointsRef.current.length - 1]
       ctx.beginPath()
-      ctx.moveTo(lastPoint.x, lastPoint.y)
-      ctx.lineTo(x, y)
-      ctx.stroke()
+      ctx.moveTo(x, y)
     }
+  }
+
+  const draw = (e: { clientX: number; clientY: number }) => {
+    if (!isDrawing) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
 
     pointsRef.current.push({
       x,
       y,
-      ...tools,
+      color: tools.color,
+      size: tools.size,
+      opacity: tools.opacity,
+      tool: tools.tool,
       timestamp: Date.now()
     })
+
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.lineTo(x, y)
+      ctx.stroke()
+    }
   }
 
   const stopDrawing = () => {
-    if (isDrawing) {
-      setIsDrawing(false)
-      onDraw?.(pointsRef.current)
-      pointsRef.current = []
+    if (!isDrawing) return
+    setIsDrawing(false)
+
+    if (pointsRef.current.length > 0) {
+      broadcastDrawing(pointsRef.current)
+      setSavedDrawings(prev => [...prev, { points: pointsRef.current }])
     }
   }
 
@@ -376,57 +368,90 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     setTools(prev => ({ ...prev, text: '' }))
   }
 
-  const throttle = (func: Function, limit: number) => {
-    let inThrottle: boolean
-    return function(...args: any[]) {
-      if (!inThrottle) {
-        func(...args)
-        inThrottle = true
-        setTimeout(() => inThrottle = false, limit)
-      }
-    }
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    startDrawing(e)
   }
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDrawing) return
-    
-    const fakeEvent = {
-      clientX: e.clientX,
-      clientY: e.clientY
-    } as React.MouseEvent<HTMLCanvasElement>
-    draw(fakeEvent)
-    
-    // Update cursor position for other users
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    draw(e)
     updateCursor(e.clientX, e.clientY)
-  }, [isDrawing, draw, updateCursor])
+  }
 
-  const throttledMouseMove = useCallback(
-    throttle(handleMouseMove, 16), // Approximately 60fps
-    [handleMouseMove]
-  )
+  const handleMouseUp = () => {
+    stopDrawing()
+  }
 
-  const handleMouseUp = useCallback(() => {
-    if (isDrawing) {
-      stopDrawing()
-    }
-  }, [isDrawing, stopDrawing])
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    startDrawing(touch)
+  }
 
-  // Update global mouse event handlers
-  useEffect(() => {
-    if (isDrawing) {
-      window.addEventListener('mousemove', throttledMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-    }
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    draw(touch)
+  }
 
-    return () => {
-      window.removeEventListener('mousemove', throttledMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDrawing, throttledMouseMove, handleMouseUp])
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    stopDrawing()
+  }
 
   return (
-    <div className="flex flex-col h-[800px] bg-zinc-900 border border-zinc-800">
-      <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+    <div className="relative w-full h-full min-h-[500px] bg-white rounded-lg shadow-md overflow-hidden">
+      {/* Loading overlay */}
+      {isLoading && !isInitialized && (
+        <div className="absolute top-4 left-4 z-50 bg-white/80 px-4 py-2 rounded-md shadow-sm">
+          <p className="text-sm text-gray-600">Loading drawings...</p>
+        </div>
+      )}
+      
+      {/* Error message */}
+      {error && (
+        <div className="absolute top-4 left-4 z-50 bg-red-50 px-4 py-2 rounded-md shadow-sm">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+
+      {/* Connection status */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <div className={cn(
+          "w-2 h-2 rounded-full",
+          isConnected ? "bg-green-500" : "bg-red-500"
+        )} />
+        <span className="text-sm text-gray-600">
+          {isConnected ? "Connected" : "Disconnected"}
+        </span>
+      </div>
+
+      {/* Active users */}
+      <div className="absolute top-16 right-4 z-50">
+        {cursors.map(([key, cursor]) => (
+          <Cursor
+            key={key}
+            x={cursor.x}
+            y={cursor.y}
+            color={cursor.color}
+            name={cursor.name}
+          />
+        ))}
+      </div>
+
+      <canvas
+        ref={canvasRef}
+        className="touch-none w-full h-full bg-[#e8f5e9]"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      />
+
+      {/* Drawing tools */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 p-4 bg-white rounded-lg shadow-lg">
         <div className="flex flex-wrap items-center gap-2">
           <button
             className={`px-3 py-1 rounded ${
@@ -530,124 +555,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
             />
           </div>
         )}
-
-        {/* Connection status and active users */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800">
-            <div className={cn(
-              "w-2 h-2 rounded-full",
-              isConnected ? "bg-green-400" : "bg-yellow-400"
-            )} />
-            <span className="text-xs font-mono text-zinc-400">
-              {isConnected ? 'Connected' : 'Connecting...'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800">
-            <Users className="w-3 h-3 text-zinc-400" />
-            <div className="flex -space-x-2">
-              {cursors.map(([key, cursor]) => (
-                <div
-                  key={key}
-                  className="w-6 h-6 rounded-full border-2 border-zinc-800 flex items-center justify-center"
-                  style={{ backgroundColor: cursor.color }}
-                >
-                  <span className="text-[10px] font-medium text-white">
-                    {cursor.name[0].toUpperCase()}
-                  </span>
-                </div>
-              ))}
-              <div
-                className="w-6 h-6 rounded-full border-2 border-zinc-800 flex items-center justify-center"
-                style={{ backgroundColor: userColor }}
-              >
-                <span className="text-[10px] font-medium text-white">
-                  {username[0].toUpperCase()}
-                </span>
-              </div>
-            </div>
-            <span className="text-xs font-mono text-zinc-400">
-              {cursors.length + 1}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 relative">
-        {error && (
-          <div className="absolute inset-x-0 top-4 mx-8 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm z-50">
-            {error}
-          </div>
-        )}
-        
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50 backdrop-blur-sm z-50">
-            <div className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg shadow-lg">
-              <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-zinc-400">Loading drawings...</span>
-            </div>
-          </div>
-        )}
-
-        <div className="absolute inset-0 m-8">
-          <div 
-            className="h-full rounded-lg overflow-hidden"
-            style={{
-              background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
-              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
-              border: '2px solid #4A2810'
-            }}
-          >
-            {/* Corner screws */}
-            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-
-            {/* Canvas container */}
-            <div className="absolute inset-6 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
-              <canvas
-                ref={canvasRef}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onClick={handleCanvasClick}
-                className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
-              />
-
-              {/* Cursors */}
-              {cursors.map(([key, cursor]) => (
-                <Cursor
-                  key={key}
-                  x={cursor.x}
-                  y={cursor.y}
-                  color={cursor.color}
-                  name={cursor.name}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )
