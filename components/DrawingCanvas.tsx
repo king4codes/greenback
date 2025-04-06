@@ -446,7 +446,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
   }, [isDrawing, throttledMouseMove, handleMouseUp])
 
   return (
-    <div className="flex flex-col h-[850px] bg-zinc-900 border border-zinc-800">
+    <div className="flex flex-col h-[800px] bg-zinc-900 border border-zinc-800">
       <div className="flex flex-wrap items-center gap-2 p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -570,9 +570,9 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         </div>
       </div>
 
-      <div className="flex-1 relative p-8">
+      <div className="flex-1 relative">
         {error && (
-          <div className="absolute inset-x-0 top-0 p-4 bg-red-500/10 border border-red-500/20 rounded-lg mx-8 text-red-400 text-sm">
+          <div className="absolute inset-x-0 top-4 mx-8 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm z-50">
             {error}
           </div>
         )}
@@ -586,79 +586,63 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           </div>
         )}
 
-        <div 
-          className="absolute inset-0 rounded-lg overflow-hidden"
-          style={{
-            background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
-            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
-            border: '2px solid #4A2810'
-          }}
-        >
+        <div className="absolute inset-0 m-8">
           <div 
-            className="absolute inset-0 opacity-40 mix-blend-overlay"
+            className="h-full rounded-lg overflow-hidden"
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'repeat'
+              background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
+              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
+              border: '2px solid #4A2810'
             }}
-          />
-
-          {/* Corner screws */}
-          <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+          >
+            {/* Corner screws */}
+            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+              </div>
             </div>
-          </div>
-          <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+              </div>
             </div>
-          </div>
-          <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+              </div>
             </div>
-          </div>
-          <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+              </div>
             </div>
-          </div>
 
-          {/* Inner shadow */}
-          <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              boxShadow: 'inset 0 0 30px rgba(0,0,0,0.4)'
-            }}
-          />
-        </div>
-
-        {/* Canvas container */}
-        <div className="relative h-full mx-12 my-12">
-          <div className="absolute inset-0 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
-            <canvas
-              ref={canvasRef}
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onClick={handleCanvasClick}
-              className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
-            />
-
-            {/* Cursors */}
-            {cursors.map(([key, cursor]) => (
-              <Cursor
-                key={key}
-                x={cursor.x}
-                y={cursor.y}
-                color={cursor.color}
-                name={cursor.name}
+            {/* Canvas container */}
+            <div className="absolute inset-6 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
+              <canvas
+                ref={canvasRef}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onClick={handleCanvasClick}
+                className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
               />
-            ))}
+
+              {/* Cursors */}
+              {cursors.map(([key, cursor]) => (
+                <Cursor
+                  key={key}
+                  x={cursor.x}
+                  y={cursor.y}
+                  color={cursor.color}
+                  name={cursor.name}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
