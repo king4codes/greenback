@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Eraser, Paintbrush, Trash2, Users, Type } from 'lucide-react'
 import { useRealtimeDrawing } from '@/hooks/use-realtime-drawing'
 import { useAuth } from '@/lib/auth'
@@ -53,46 +53,66 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     tool: 'brush' | 'eraser' | 'text' | 'spray'
     timestamp: number
   }>>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const { cursors, updateCursor, broadcastDrawing, clearCanvas, isConnected } = useRealtimeDrawing(roomName, username)
 
-  useEffect(() => {
+  const debounce = (func: Function, wait: number) => {
+    let timeout: NodeJS.Timeout
+    return function executedFunction(...args: any[]) {
+      const later = () => {
+        clearTimeout(timeout)
+        func(...args)
+      }
+      clearTimeout(timeout)
+      timeout = setTimeout(later, wait)
+    }
+  }
+
+  const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const resizeCanvas = () => {
-      const container = canvas.parentElement
-      if (!container) return
+    const container = canvas.parentElement
+    if (!container) return
 
-      // Get the actual container dimensions
-      const containerWidth = container.clientWidth
-      const containerHeight = container.clientHeight
+    // Get the actual container dimensions
+    const containerWidth = container.clientWidth
+    const containerHeight = container.clientHeight
 
-      // Set canvas size to match container while maintaining aspect ratio
-      const scale = window.devicePixelRatio || 1
-      canvas.width = containerWidth * scale
-      canvas.height = containerHeight * scale
-
-      // Set display size
-      canvas.style.width = `${containerWidth}px`
-      canvas.style.height = `${containerHeight}px`
-
-      // Scale the context to account for device pixel ratio
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.scale(scale, scale)
-        ctx.fillStyle = '#e8f5e9'
-        ctx.fillRect(0, 0, containerWidth, containerHeight)
-      }
+    // Only resize if dimensions have changed
+    if (canvas.width === containerWidth && canvas.height === containerHeight) {
+      return
     }
 
-    resizeCanvas()
-    window.addEventListener('resize', resizeCanvas)
+    // Set canvas size to match container while maintaining aspect ratio
+    const scale = window.devicePixelRatio || 1
+    canvas.width = containerWidth * scale
+    canvas.height = containerHeight * scale
 
-    return () => {
-      window.removeEventListener('resize', resizeCanvas)
+    // Set display size
+    canvas.style.width = `${containerWidth}px`
+    canvas.style.height = `${containerHeight}px`
+
+    // Scale the context to account for device pixel ratio
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.scale(scale, scale)
+      ctx.fillStyle = '#e8f5e9'
+      ctx.fillRect(0, 0, containerWidth, containerHeight)
     }
   }, [])
+
+  useEffect(() => {
+    resizeCanvas()
+    const debouncedResize = debounce(resizeCanvas, 250)
+    window.addEventListener('resize', debouncedResize)
+
+    return () => {
+      window.removeEventListener('resize', debouncedResize)
+    }
+  }, [resizeCanvas])
 
   // Load and render existing drawings
   useEffect(() => {
@@ -101,25 +121,27 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       if (!canvas) return
 
       try {
-        const { data, error } = await supabase
+        setIsLoading(true)
+        setError(null)
+        
+        const { data, error: supabaseError } = await supabase
           .from('drawing_data')
           .select('points')
           .eq('room_name', roomName)
           .order('created_at', { ascending: true });
 
-        if (error) {
-          console.error('Error loading drawings:', error);
-          return;
+        if (supabaseError) {
+          throw new Error(supabaseError.message)
         }
 
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('Could not get canvas context')
+
+        // Clear canvas before rendering saved drawings
+        ctx.fillStyle = '#e8f5e9'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+
         if (data) {
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return
-
-          // Clear canvas before rendering saved drawings
-          ctx.fillStyle = '#e8f5e9'
-          ctx.fillRect(0, 0, canvas.width, canvas.height)
-
           // Render each saved drawing
           data.forEach(drawing => {
             const points = drawing.points
@@ -142,6 +164,9 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         }
       } catch (err) {
         console.error('Error loading drawings:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load drawings')
+      } finally {
+        setIsLoading(false)
       }
     }
 
@@ -372,36 +397,56 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     setTools(prev => ({ ...prev, text: '' }))
   }
 
-  // Add global mouse event handlers
+  const throttle = (func: Function, limit: number) => {
+    let inThrottle: boolean
+    return function(...args: any[]) {
+      if (!inThrottle) {
+        func(...args)
+        inThrottle = true
+        setTimeout(() => inThrottle = false, limit)
+      }
+    }
+  }
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDrawing) return
+    
+    const fakeEvent = {
+      clientX: e.clientX,
+      clientY: e.clientY
+    } as React.MouseEvent<HTMLCanvasElement>
+    draw(fakeEvent)
+    
+    // Update cursor position for other users
+    updateCursor(e.clientX, e.clientY)
+  }, [isDrawing, draw, updateCursor])
+
+  const throttledMouseMove = useCallback(
+    throttle(handleMouseMove, 16), // Approximately 60fps
+    [handleMouseMove]
+  )
+
+  const handleMouseUp = useCallback(() => {
+    if (isDrawing) {
+      stopDrawing()
+    }
+  }, [isDrawing, stopDrawing])
+
+  // Update global mouse event handlers
   useEffect(() => {
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (isDrawing) {
-        const fakeEvent = {
-          clientX: e.clientX,
-          clientY: e.clientY
-        } as React.MouseEvent<HTMLCanvasElement>
-        draw(fakeEvent)
-      }
+    if (isDrawing) {
+      window.addEventListener('mousemove', throttledMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
     }
-
-    const handleGlobalMouseUp = () => {
-      if (isDrawing) {
-        stopDrawing()
-      }
-    }
-
-    // Add global event listeners
-    window.addEventListener('mousemove', handleGlobalMouseMove)
-    window.addEventListener('mouseup', handleGlobalMouseUp)
 
     return () => {
-      window.removeEventListener('mousemove', handleGlobalMouseMove)
-      window.removeEventListener('mouseup', handleGlobalMouseUp)
+      window.removeEventListener('mousemove', throttledMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDrawing]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isDrawing, throttledMouseMove, handleMouseUp])
 
   return (
-    <div className="flex flex-col h-[750px] bg-zinc-900 border border-zinc-800">
+    <div className="flex flex-col h-[850px] bg-zinc-900 border border-zinc-800">
       <div className="flex flex-wrap items-center gap-2 p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -525,9 +570,24 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         </div>
       </div>
 
-      <div className="relative flex-1 p-8">
+      <div className="flex-1 relative p-8">
+        {error && (
+          <div className="absolute inset-x-0 top-0 p-4 bg-red-500/10 border border-red-500/20 rounded-lg mx-8 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+        
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50 backdrop-blur-sm z-50">
+            <div className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg shadow-lg">
+              <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-zinc-400">Loading drawings...</span>
+            </div>
+          </div>
+        )}
+
         <div 
-          className="absolute inset-0 m-8 rounded-lg overflow-hidden"
+          className="absolute inset-0 rounded-lg overflow-hidden"
           style={{
             background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
             boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
