@@ -271,7 +271,10 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     if (!ctx) return
 
     try {
-      // Delete all drawings from the database for this room first
+      // First, broadcast clear event to all users
+      clearCanvas()
+
+      // Then delete all drawings from the database for this room
       const { error: deleteError } = await supabase
         .from('drawing_data')
         .delete()
@@ -281,6 +284,19 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         throw new Error(deleteError.message)
       }
 
+      // Also store a clear event in the database to track the last clear
+      const { error: clearEventError } = await supabase
+        .from('canvas_state')
+        .upsert({
+          room_name: roomName,
+          last_cleared_at: new Date().toISOString(),
+          cleared_by: username
+        })
+
+      if (clearEventError) {
+        console.error('Error storing clear event:', clearEventError)
+      }
+
       // Clear the canvas
       const scale = window.devicePixelRatio || 1
       ctx.fillStyle = '#e8f5e9'
@@ -288,13 +304,10 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       
       // Clear local state
       setSavedDrawings([])
-
-      // Broadcast clear event to all users
-      clearCanvas()
     } catch (error) {
       console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
     }
-  }, [clearCanvas, roomName])
+  }, [clearCanvas, roomName, username])
 
   // Load drawings once and set up real-time subscription
   useEffect(() => {
@@ -302,9 +315,23 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       try {
         setIsLoading(true)
         
+        // First check if there's a clear event after the last drawing
+        const { data: clearState, error: clearStateError } = await supabase
+          .from('canvas_state')
+          .select('last_cleared_at')
+          .eq('room_name', roomName)
+          .single()
+
+        if (clearStateError && clearStateError.code !== 'PGRST116') { // PGRST116 is "not found" error
+          console.error('Error checking clear state:', clearStateError)
+        }
+
+        const lastClearedAt = clearState?.last_cleared_at
+
+        // Only fetch drawings that were made after the last clear
         const { data, error: supabaseError } = await supabase
           .from('drawing_data')
-          .select('points')
+          .select('points, created_at')
           .eq('room_name', roomName)
           .order('created_at', { ascending: true });
 
@@ -312,9 +339,14 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           throw new Error(supabaseError.message)
         }
 
-        // Only set and draw if we have data
-        if (data && data.length > 0) {
-          setSavedDrawings(data)
+        // Filter out drawings made before the last clear
+        const filteredData = lastClearedAt 
+          ? data?.filter(drawing => drawing.created_at > lastClearedAt)
+          : data
+
+        // Only set and draw if we have data after filtering
+        if (filteredData && filteredData.length > 0) {
+          setSavedDrawings(filteredData)
           // Redraw all loaded drawings
           const canvas = canvasRef.current
           if (!canvas) return
@@ -326,7 +358,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           ctx.fillStyle = '#e8f5e9'
           ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
 
-          data.forEach(drawing => {
+          filteredData.forEach(drawing => {
             const points = drawing.points
             if (!Array.isArray(points) || points.length < 1) return
 
@@ -366,7 +398,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
             }
           })
         } else {
-          // If no data, ensure canvas is clear
+          // If no data or all drawings were before the last clear, ensure canvas is clear
           const canvas = canvasRef.current
           if (!canvas) return
 
