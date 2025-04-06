@@ -31,6 +31,16 @@ interface DrawingTools {
   text?: string
 }
 
+interface DrawPoint {
+  x: number
+  y: number
+  color: string
+  size: number
+  opacity: number
+  tool: 'brush' | 'eraser' | 'text' | 'spray'
+  timestamp: number
+}
+
 export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
@@ -55,6 +65,8 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
   }>>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeUsers, setActiveUsers] = useState<string[]>([])
+  const [userColor] = useState(() => `hsl(${Math.random() * 360}, 70%, 50%)`)
 
   const { cursors, updateCursor, broadcastDrawing, clearCanvas, isConnected } = useRealtimeDrawing(roomName, username)
 
@@ -177,58 +189,38 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const handleDrawEvent = (points: Array<{
-      x: number
-      y: number
-      color: string
-      size: number
-      opacity: number
-      tool: 'brush' | 'eraser' | 'text' | 'spray'
-      timestamp: number
-    }>) => {
-      const ctx = canvas.getContext('2d')
-      if (!ctx || points.length < 2) return
-
-      ctx.globalAlpha = points[0].opacity
-      ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-      ctx.lineWidth = points[0].size
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-
-      ctx.beginPath()
-      ctx.moveTo(points[0].x, points[0].y)
-
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y)
-      }
-      ctx.stroke()
-    }
-
-    const handleClearEvent = () => {
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-
-      ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-    }
-
     const channel = supabase.channel(`drawing:${roomName}`)
+
     channel
-      .on('broadcast', { event: 'draw' }, (payload: { payload: { points: Array<{
-        x: number
-        y: number
-        color: string
-        size: number
-        opacity: number
-        tool: 'brush' | 'eraser' | 'text' | 'spray'
-        timestamp: number
-      }> } }) => {
+      .on('broadcast', { event: 'draw' }, (payload: { payload: { points: DrawPoint[] } }) => {
         if (payload.payload.points) {
-          handleDrawEvent(payload.payload.points)
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
+
+          const points = payload.payload.points
+          if (!Array.isArray(points) || points.length < 2) return
+
+          ctx.globalAlpha = points[0].opacity
+          ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+          ctx.lineWidth = points[0].size
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+
+          ctx.beginPath()
+          ctx.moveTo(points[0].x, points[0].y)
+
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y)
+          }
+          ctx.stroke()
         }
       })
       .on('broadcast', { event: 'clear' }, () => {
-        handleClearEvent()
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        ctx.fillStyle = '#e8f5e9'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
       })
       .subscribe()
 
@@ -447,7 +439,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
   return (
     <div className="flex flex-col h-[800px] bg-zinc-900 border border-zinc-800">
-      <div className="flex flex-wrap items-center gap-2 p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
         <div className="flex flex-wrap items-center gap-2">
           <button
             className={`px-3 py-1 rounded ${
@@ -552,17 +544,41 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           </div>
         )}
 
-        {/* Connection Status */}
-        <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800 ml-auto">
-          <div className={cn(
-            "w-2 h-2 rounded-full",
-            isConnected ? "bg-green-400" : "bg-yellow-400"
-          )} />
-          <span className="text-xs font-mono text-zinc-400">
-            {isConnected ? 'Connected' : 'Connecting...'}
-          </span>
-          <div className="flex items-center gap-1 border-l border-zinc-800 pl-2">
+        {/* Connection status and active users */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800">
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              isConnected ? "bg-green-400" : "bg-yellow-400"
+            )} />
+            <span className="text-xs font-mono text-zinc-400">
+              {isConnected ? 'Connected' : 'Connecting...'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800">
             <Users className="w-3 h-3 text-zinc-400" />
+            <div className="flex -space-x-2">
+              {cursors.map(([key, cursor]) => (
+                <div
+                  key={key}
+                  className="w-6 h-6 rounded-full border-2 border-zinc-800 flex items-center justify-center"
+                  style={{ backgroundColor: cursor.color }}
+                >
+                  <span className="text-[10px] font-medium text-white">
+                    {cursor.name[0].toUpperCase()}
+                  </span>
+                </div>
+              ))}
+              <div
+                className="w-6 h-6 rounded-full border-2 border-zinc-800 flex items-center justify-center"
+                style={{ backgroundColor: userColor }}
+              >
+                <span className="text-[10px] font-medium text-white">
+                  {username[0].toUpperCase()}
+                </span>
+              </div>
+            </div>
             <span className="text-xs font-mono text-zinc-400">
               {cursors.length + 1}
             </span>
