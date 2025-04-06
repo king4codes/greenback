@@ -514,59 +514,60 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         </div>
       </div>
 
-      <div className="flex-1 relative bg-[#e8f5e9] p-8">
-        <div className="absolute inset-0 p-8">
+      <div className="relative flex-1 p-8">
+        <div 
+          className="absolute inset-0 m-8 rounded-lg overflow-hidden"
+          style={{
+            background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
+            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4)',
+            border: '2px solid #4A2810'
+          }}
+        >
           <div 
-            className="absolute inset-0"
+            className="absolute inset-0 opacity-40 mix-blend-overlay"
             style={{
-              background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
-              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4)',
-              border: '1px solid #4A2810'
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'repeat'
             }}
-          >
-            <div 
-              className="absolute inset-0 opacity-40 mix-blend-overlay"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E")`,
-                backgroundRepeat: 'repeat'
-              }}
-            />
+          />
 
-            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
+          {/* Corner screws */}
+          <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
             </div>
-            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-
-            <div 
-              className="absolute inset-4 pointer-events-none"
-              style={{
-                boxShadow: 'inset 0 0 15px rgba(0,0,0,0.3)'
-              }}
-            />
           </div>
+          <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            </div>
+          </div>
+          <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            </div>
+          </div>
+          <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            </div>
+          </div>
+
+          {/* Inner shadow */}
+          <div 
+            className="absolute inset-4 pointer-events-none"
+            style={{
+              boxShadow: 'inset 0 0 15px rgba(0,0,0,0.3)'
+            }}
+          />
         </div>
 
-        <div className="relative h-full overflow-hidden">
+        {/* Canvas container */}
+        <div className="relative h-full mx-12 my-12 bg-[#e8f5e9] rounded-lg overflow-hidden">
           <canvas
             ref={canvasRef}
             onMouseDown={startDrawing}
