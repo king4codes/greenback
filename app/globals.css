@@ -4,25 +4,34 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    /* RuneScape Theme Colors */
+    --rs-brown-dark: 43, 24, 16;      /* #2B1810 */
+    --rs-brown: 70, 56, 49;           /* #463831 */
+    --rs-brown-light: 92, 74, 61;     /* #5C4A3D */
+    --rs-gold: 255, 215, 0;           /* #FFD700 */
+    --rs-silver: 192, 192, 192;       /* #C0C0C0 */
+    --rs-bronze: 205, 127, 50;        /* #CD7F32 */
+
+    /* Original theme colors preserved but updated */
+    --background: 43 24 16;
+    --foreground: 255 215 0;
+    --card: 70 56 49;
+    --card-foreground: 255 215 0;
+    --popover: 43 24 16;
+    --popover-foreground: 255 215 0;
+    --primary: 255 215 0;
+    --primary-foreground: 43 24 16;
+    --secondary: 92 74 61;
+    --secondary-foreground: 255 215 0;
+    --muted: 70 56 49;
+    --muted-foreground: 192 192 192;
+    --accent: 92 74 61;
+    --accent-foreground: 255 215 0;
+    --destructive: 255 99 71;
+    --destructive-foreground: 255 215 0;
+    --border: 56 36 24;
+    --input: 70 56 49;
+    --ring: 255 215 0;
     --radius: 0.5rem;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -65,6 +74,45 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* RuneScape-style container */
+  .rs-container {
+    @apply relative rounded-lg border-2 border-[#382418] overflow-hidden shadow-lg;
+    @apply before:absolute before:inset-0 before:bg-gradient-to-br before:from-[#463831] before:to-[#2B1810];
+    @apply after:absolute after:inset-0 after:bg-black/10 after:pointer-events-none;
+  }
+
+  /* RuneScape-style corners */
+  .rs-corners {
+    @apply before:absolute before:top-0 before:left-0 before:w-3 before:h-3 before:border-t-2 before:border-l-2 before:border-[#5C4A3D] before:rounded-tl-sm;
+    @apply after:absolute after:top-0 after:right-0 after:w-3 after:h-3 after:border-t-2 after:border-r-2 after:border-[#5C4A3D] after:rounded-tr-sm;
+  }
+
+  /* RuneScape-style text */
+  .rs-title {
+    @apply text-[#FFD700] drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)];
+  }
+
+  .rs-text {
+    @apply text-[#C0C0C0] drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)];
+  }
+
+  /* RuneScape-style button */
+  .rs-button {
+    @apply relative px-4 py-2 rounded-md border-2 border-[#382418] bg-gradient-to-b from-[#463831] to-[#2B1810];
+    @apply hover:from-[#5C4A3D] hover:to-[#463831] transition-all duration-200;
+    @apply text-[#FFD700] drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)];
+    @apply before:absolute before:inset-0 before:bg-black/10 before:pointer-events-none;
+  }
+
+  /* RuneScape-style input */
+  .rs-input {
+    @apply bg-[#2B1810] border-2 border-[#382418] rounded-md px-3 py-2;
+    @apply text-[#C0C0C0] placeholder-[#5C4A3D];
+    @apply focus:outline-none focus:ring-2 focus:ring-[#FFD700]/50;
   }
 }
 
