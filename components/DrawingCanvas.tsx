@@ -176,56 +176,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     loadDrawings()
   }, [roomName])
 
-  // Listen for real-time drawing updates
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const channel = supabase.channel(`drawing:${roomName}`)
-    
-    channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
-      if (payload.points) {
-        const points = payload.points
-        if (!Array.isArray(points) || points.length < 2) return
-
-        // Draw the new points
-        ctx.globalAlpha = points[0].opacity
-        ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-        ctx.lineWidth = points[0].size
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
-
-        ctx.beginPath()
-        ctx.moveTo(points[0].x, points[0].y)
-
-        for (let i = 1; i < points.length; i++) {
-          ctx.lineTo(points[i].x, points[i].y)
-        }
-        ctx.stroke()
-
-        // Update state
-        setSavedDrawings(prev => [...prev, { points: [...points] }])
-      }
-    }).on('broadcast', { event: 'clear' }, () => {
-      setSavedDrawings([])
-      const scale = window.devicePixelRatio || 1
-      ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-    }).subscribe()
-
-    return () => {
-      channel.unsubscribe()
-    }
-  }, [roomName])
-
-  // Redraw canvas when savedDrawings changes or canvas is resized
-  useEffect(() => {
-    redrawCanvas()
-  }, [savedDrawings, redrawCanvas])
-
   const clearCanvasCompletely = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -238,44 +188,28 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
     
     setSavedDrawings([])
+    // Broadcast clear event to all users
     clearCanvas()
   }, [clearCanvas])
 
-  const sprayEffect = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
-    const density = tools.size * 2; // More particles for larger sizes
-    const radius = tools.size;
-    
-    ctx.fillStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color;
-    ctx.globalAlpha = (tools.opacity * 0.4); // Reduce opacity for spray effect
+  const sprayEffect = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    const density = 50
+    const radius = tools.size
+
+    ctx.globalAlpha = tools.opacity / 2
+    ctx.fillStyle = tools.color
 
     for (let i = 0; i < density; i++) {
-      const offsetX = (Math.random() * 2 - 1) * radius;
-      const offsetY = (Math.random() * 2 - 1) * radius;
-      const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
-      
-      if (distance <= radius) {
-        ctx.beginPath();
-        ctx.arc(x + offsetX, y + offsetY, 0.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      const angle = Math.random() * Math.PI * 2
+      const radiusRandom = Math.random() * radius
+      const sprayX = x + Math.cos(angle) * radiusRandom
+      const sprayY = y + Math.sin(angle) * radiusRandom
+
+      ctx.beginPath()
+      ctx.arc(sprayX, sprayY, 0.5, 0, Math.PI * 2)
+      ctx.fill()
     }
-  }
-
-  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-
-    const rect = canvas.getBoundingClientRect()
-    
-    let x = e.clientX - rect.left
-    let y = e.clientY - rect.top
-
-    // Constrain coordinates to canvas boundaries
-    x = Math.max(0, Math.min(x, rect.width))
-    y = Math.max(0, Math.min(y, rect.height))
-
-    return { x, y }
-  }
+  }, [tools])
 
   const drawPath = useCallback((ctx: CanvasRenderingContext2D, points: DrawPoint[]) => {
     if (!points.length) return;
@@ -339,7 +273,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         })
       }
     }
-  }, [tools, earnAchievement, sprayEffect, user])
+  }, [tools, earnAchievement, sprayEffect, user]);
 
   const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
@@ -363,18 +297,180 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
     setCurrentPath(prev => {
       const updatedPath = [...prev, newPoint];
-      
-      // Draw only the new segment
       if (updatedPath.length > 1) {
         drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
       }
-      
       return updatedPath;
     });
 
-    // Update cursor position for real-time collaboration
     updateCursor(x, y);
   }, [isDrawing, tools, drawPath, updateCursor]);
+
+  const finishDrawing = useCallback(() => {
+    if (!isDrawing) return;
+
+    setIsDrawing(false);
+    
+    // Save the completed path
+    if (currentPath.length > 1) {
+      setSavedDrawings(prev => [...prev, { points: currentPath }]);
+      broadcastDrawing(currentPath);
+      
+      if (onDraw) {
+        onDraw(currentPath);
+      }
+    }
+    
+    setCurrentPath([]);
+  }, [isDrawing, currentPath, broadcastDrawing, onDraw]);
+
+  // Add window-level mouse event handlers for continuous drawing
+  useEffect(() => {
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      if (!isDrawing) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const newPoint = {
+        x,
+        y,
+        ...tools,
+        timestamp: Date.now()
+      };
+
+      setCurrentPath(prev => {
+        const updatedPath = [...prev, newPoint];
+        if (updatedPath.length > 1) {
+          drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
+        }
+        return updatedPath;
+      });
+
+      updateCursor(x, y);
+    };
+
+    const handleWindowMouseUp = () => {
+      if (isDrawing) {
+        finishDrawing();
+      }
+    };
+
+    if (isDrawing) {
+      window.addEventListener('mousemove', handleWindowMouseMove);
+      window.addEventListener('mouseup', handleWindowMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [isDrawing, tools, drawPath, updateCursor, finishDrawing]);
+
+  // Listen for real-time drawing updates
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const channel = supabase.channel(`drawing:${roomName}`)
+    
+    channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
+      if (payload.points) {
+        const points = payload.points
+        if (!Array.isArray(points) || points.length < 2) return
+
+        // Draw the new points
+        ctx.globalAlpha = points[0].opacity
+        ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+        ctx.lineWidth = points[0].size
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+
+        ctx.beginPath()
+        ctx.moveTo(points[0].x, points[0].y)
+
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y)
+        }
+        ctx.stroke()
+
+        // Update state
+        setSavedDrawings(prev => [...prev, { points: [...points] }])
+      }
+    }).on('broadcast', { event: 'clear' }, () => {
+      // Clear canvas for all users
+      setSavedDrawings([])
+      const scale = window.devicePixelRatio || 1
+      ctx.fillStyle = '#e8f5e9'
+      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+    }).subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [roomName])
+
+  // Redraw canvas when savedDrawings changes or canvas is resized
+  useEffect(() => {
+    redrawCanvas()
+  }, [savedDrawings, redrawCanvas])
+
+  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+    
+    let x = e.clientX - rect.left
+    let y = e.clientY - rect.top
+
+    // Constrain coordinates to canvas boundaries
+    x = Math.max(0, Math.min(x, rect.width))
+    y = Math.max(0, Math.min(y, rect.height))
+
+    return { x, y }
+  }
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (tools.tool === 'text') {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const rect = canvas.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+
+      setTextPosition({ x, y })
+    }
+  }
+
+  const addTextToCanvas = (text: string) => {
+    if (!textPosition || !text) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.globalAlpha = tools.opacity
+    ctx.fillStyle = tools.color
+    ctx.font = `${tools.size}px Arial`
+    ctx.fillText(text, textPosition.x, textPosition.y)
+
+    setTextPosition(null)
+    setTools(prev => ({ ...prev, text: '' }))
+  }
 
   // Add touch support
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
@@ -428,55 +524,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
     updateCursor(x, y);
   }, [isDrawing, tools, drawPath, updateCursor]);
-
-  const finishDrawing = useCallback(() => {
-    if (!isDrawing) return;
-
-    setIsDrawing(false);
-    
-    // Save the completed path
-    if (currentPath.length > 1) {
-      setSavedDrawings(prev => [...prev, { points: currentPath }]);
-      broadcastDrawing(currentPath);
-      
-      if (onDraw) {
-        onDraw(currentPath);
-      }
-    }
-    
-    setCurrentPath([]);
-  }, [isDrawing, currentPath, broadcastDrawing, onDraw]);
-
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (tools.tool === 'text') {
-      const canvas = canvasRef.current
-      if (!canvas) return
-
-      const rect = canvas.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
-
-      setTextPosition({ x, y })
-    }
-  }
-
-  const addTextToCanvas = (text: string) => {
-    if (!textPosition || !text) return
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.globalAlpha = tools.opacity
-    ctx.fillStyle = tools.color
-    ctx.font = `${tools.size}px Arial`
-    ctx.fillText(text, textPosition.x, textPosition.y)
-
-    setTextPosition(null)
-    setTools(prev => ({ ...prev, text: '' }))
-  }
 
   return (
     <div className="flex flex-col h-[800px] bg-zinc-900 border border-zinc-800">
@@ -667,12 +714,10 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
                 ref={canvasRef}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
-                onMouseUp={finishDrawing}
-                onMouseLeave={finishDrawing}
+                onClick={handleCanvasClick}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={finishDrawing}
-                onClick={handleCanvasClick}
                 className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
               />
 
