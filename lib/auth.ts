@@ -127,9 +127,10 @@ export function useAuth() {
       }
     };
 
+    // Initial check
     checkUser();
 
-    // Listen for auth state changes
+    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
         if (!mounted) return;

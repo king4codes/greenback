@@ -1,94 +1,103 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import MainLayout from '@/components/MainLayout'
 import SettingsForm from '@/components/SettingsForm'
 import { useAuth } from '@/lib/auth'
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase-browser'
 
 export default function SettingsPage() {
-  const { user, loading, refreshUserProfile } = useAuth()
   const router = useRouter()
+  const { user, loading, error, refreshUserProfile } = useAuth()
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [sessionError, setSessionError] = useState<string | null>(null)
 
-  // Redirect if not signed in
   useEffect(() => {
-    if (!user && !loading) {
-      router.push('/login')
+    const checkSession = async () => {
+      try {
+        console.log('Checking session in settings page...')
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          throw sessionError
+        }
+
+        if (!session) {
+          console.log('No session found, redirecting to login...')
+          router.push('/login')
+          return
+        }
+
+        console.log('Session found, continuing to settings page')
+      } catch (err: any) {
+        console.error('Session check error:', err)
+        setSessionError(err.message)
+      } finally {
+        setIsCheckingSession(false)
+      }
     }
-  }, [user, loading, router])
 
-  // Refresh user profile when page loads
-  useEffect(() => {
-    refreshUserProfile()
-  }, [refreshUserProfile])
+    checkSession()
+  }, [router])
 
-  const handleLogout = async () => {
-    try {
-      // First sign out from Supabase client
-      await supabase.auth.signOut()
-      
-      // Then call our API to clear cookies
-      await fetch('/api/auth/signout', {
-        method: 'GET',
-        credentials: 'include'
-      })
-
-      // Redirect to login
-      window.location.href = '/login'
-    } catch (error) {
-      console.error('Error signing out:', error)
-    }
-  }
-
-  if (loading) {
+  // Show loading state while checking session or auth loading
+  if (isCheckingSession || loading) {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-pulse text-zinc-400">Loading...</div>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p className="text-gray-600">Checking authentication status...</p>
+          </div>
         </div>
       </MainLayout>
     )
   }
 
+  // Show error state
+  if (sessionError || error) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center text-red-600">
+            <p>Error: {sessionError || error}</p>
+            <button 
+              onClick={() => router.push('/login')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Return to Login
+            </button>
+          </div>
+        </div>
+      </MainLayout>
+    )
+  }
+
+  // Show settings form only if user is authenticated
   if (!user) {
-    return null
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-gray-600">Please log in to access settings.</p>
+            <button 
+              onClick={() => router.push('/login')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Go to Login
+            </button>
+          </div>
+        </div>
+      </MainLayout>
+    )
   }
 
   return (
     <MainLayout>
-      <div className="max-w-2xl mx-auto py-8">
-        <div className="text-center mb-8">
-          <h1 className="font-garamond text-3xl text-green-400 mb-4">
-            Account Settings
-          </h1>
-          <p className="text-zinc-400 font-mono text-sm">
-            Manage your profile and account settings
-          </p>
-        </div>
-
-        <div className="bg-zinc-800/50 rounded-lg p-8">
-          <SettingsForm onUpdate={refreshUserProfile} />
-        </div>
-
-        {/* Logout Section */}
-        <div className="mt-8 bg-zinc-800/50 rounded-lg p-8">
-          <h2 className="font-garamond text-xl text-green-400 mb-4">Account Actions</h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-red-400 font-medium mb-1">Logout</h3>
-              <p className="text-zinc-400 text-sm">Sign out of your account</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-8">Settings</h1>
+        <SettingsForm onUpdate={refreshUserProfile} />
       </div>
     </MainLayout>
   )
