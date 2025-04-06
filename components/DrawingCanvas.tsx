@@ -167,7 +167,103 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
   }, [resizeCanvas])
 
-  // Load drawings once
+  // Update the channel listener to properly handle real-time drawing updates
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const channel = supabase.channel(`drawing:${roomName}`)
+    
+    channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
+      if (payload.points) {
+        const points = payload.points
+        if (!Array.isArray(points) || points.length < 1) return
+
+        // Add the new drawing to savedDrawings first
+        setSavedDrawings(prev => [...prev, { points: [...points] }])
+
+        // Then draw it on the canvas
+        if (points[0].tool === 'spray') {
+          points.forEach(point => {
+            ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
+            ctx.globalAlpha = point.opacity * 0.6
+            const density = point.size * 3
+            const radius = point.size * 1.5
+            const particleSize = 0.8
+
+            for (let i = 0; i < density; i++) {
+              const angle = Math.random() * Math.PI * 2
+              const radiusRandom = Math.sqrt(Math.random()) * radius
+              const particleX = point.x + Math.cos(angle) * radiusRandom
+              const particleY = point.y + Math.sin(angle) * radiusRandom
+
+              ctx.beginPath()
+              ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+              ctx.fill()
+            }
+          })
+        } else {
+          ctx.globalAlpha = points[0].opacity
+          ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+          ctx.lineWidth = points[0].size
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+
+          ctx.beginPath()
+          ctx.moveTo(points[0].x, points[0].y)
+
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y)
+          }
+          ctx.stroke()
+        }
+      }
+    }).on('broadcast', { event: 'clear' }, () => {
+      // Clear canvas for all users
+      const scale = window.devicePixelRatio || 1
+      ctx.fillStyle = '#e8f5e9'
+      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+      setSavedDrawings([]) // Clear the saved drawings array
+    }).subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [roomName])
+
+  const clearCanvasCompletely = useCallback(async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Clear the canvas
+    const scale = window.devicePixelRatio || 1
+    ctx.fillStyle = '#e8f5e9'
+    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+    
+    // Clear local state
+    setSavedDrawings([])
+
+    try {
+      // Delete all drawings from the database for this room
+      await supabase
+        .from('drawing_data')
+        .delete()
+        .eq('room_name', roomName)
+      
+      // Broadcast clear event to all users
+      clearCanvas()
+    } catch (error) {
+      console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
+    }
+  }, [clearCanvas, roomName])
+
+  // Load drawings once and set up real-time subscription
   useEffect(() => {
     const loadDrawings = async () => {
       try {
@@ -185,6 +281,56 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
         if (data) {
           setSavedDrawings(data)
+          // Redraw all loaded drawings
+          const canvas = canvasRef.current
+          if (!canvas) return
+
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
+
+          const scale = window.devicePixelRatio || 1
+          ctx.fillStyle = '#e8f5e9'
+          ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+
+          data.forEach(drawing => {
+            const points = drawing.points
+            if (!Array.isArray(points) || points.length < 1) return
+
+            if (points[0].tool === 'spray') {
+              points.forEach(point => {
+                ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
+                ctx.globalAlpha = point.opacity * 0.6
+                const density = point.size * 3
+                const radius = point.size * 1.5
+                const particleSize = 0.8
+
+                for (let i = 0; i < density; i++) {
+                  const angle = Math.random() * Math.PI * 2
+                  const radiusRandom = Math.sqrt(Math.random()) * radius
+                  const particleX = point.x + Math.cos(angle) * radiusRandom
+                  const particleY = point.y + Math.sin(angle) * radiusRandom
+
+                  ctx.beginPath()
+                  ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+                  ctx.fill()
+                }
+              })
+            } else {
+              ctx.globalAlpha = points[0].opacity
+              ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+              ctx.lineWidth = points[0].size
+              ctx.lineCap = 'round'
+              ctx.lineJoin = 'round'
+
+              ctx.beginPath()
+              ctx.moveTo(points[0].x, points[0].y)
+
+              for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y)
+              }
+              ctx.stroke()
+            }
+          })
         }
       } catch (error) {
         console.error('Error loading drawings:', error)
@@ -196,31 +342,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
     loadDrawings()
   }, [roomName])
-
-  const clearCanvasCompletely = useCallback(async () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const scale = window.devicePixelRatio || 1
-    ctx.fillStyle = '#e8f5e9'
-    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-    
-    setSavedDrawings([])
-    // Save clear state to database and broadcast to all users
-    try {
-      await supabase
-        .from('drawing_data')
-        .delete()
-        .eq('room_name', roomName)
-      
-      clearCanvas() // Broadcast clear event
-    } catch (error) {
-      console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
-    }
-  }, [clearCanvas, roomName])
 
   const sprayEffect = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
     const density = tools.size * 3 // Increase density for more particles
@@ -424,84 +545,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
   }, [isDrawing, tools, drawPath, updateCursor, finishDrawing]);
-
-  // Listen for real-time drawing updates
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const channel = supabase.channel(`drawing:${roomName}`)
-    
-    channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
-      if (payload.points) {
-        const points = payload.points
-        if (!Array.isArray(points) || points.length < 1) return
-
-        if (points[0].tool === 'spray') {
-          points.forEach(point => {
-            ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
-            ctx.globalAlpha = point.opacity * 0.6
-            const density = point.size * 3
-            const radius = point.size * 1.5
-            const particleSize = 0.8
-
-            for (let i = 0; i < density; i++) {
-              const angle = Math.random() * Math.PI * 2
-              const radiusRandom = Math.sqrt(Math.random()) * radius
-              const particleX = point.x + Math.cos(angle) * radiusRandom
-              const particleY = point.y + Math.sin(angle) * radiusRandom
-
-              ctx.beginPath()
-              ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
-              ctx.fill()
-            }
-          })
-        } else {
-          ctx.globalAlpha = points[0].opacity
-          ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-          ctx.lineWidth = points[0].size
-          ctx.lineCap = 'round'
-          ctx.lineJoin = 'round'
-
-          ctx.beginPath()
-          ctx.moveTo(points[0].x, points[0].y)
-
-          for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y)
-          }
-          ctx.stroke()
-        }
-
-        // Update state and save to database
-        setSavedDrawings(prev => [...prev, { points: [...points] }])
-        supabase
-          .from('drawing_data')
-          .insert({
-            room_name: roomName,
-            points: points,
-            created_at: new Date().toISOString()
-          })
-          .then(({ error }) => {
-            if (error) {
-              console.error('Error saving drawing:', error.message);
-            }
-          });
-      }
-    }).on('broadcast', { event: 'clear' }, () => {
-      // Clear canvas for all users
-      setSavedDrawings([])
-      const scale = window.devicePixelRatio || 1
-      ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-    }).subscribe()
-
-    return () => {
-      channel.unsubscribe()
-    }
-  }, [roomName])
 
   // Redraw canvas when savedDrawings changes or canvas is resized
   useEffect(() => {
