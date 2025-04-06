@@ -97,21 +97,21 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
       if (points[0].tool === 'spray') {
         points.forEach(point => {
-          ctx.globalAlpha = point.opacity * 0.4
-          ctx.fillStyle = point.color
-          const density = point.size * 2
-          const radius = point.size
+          ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
+          ctx.globalAlpha = point.opacity * 0.6
+          const density = point.size * 3
+          const radius = point.size * 1.5
+          const particleSize = 0.8
 
           for (let i = 0; i < density; i++) {
-            const offsetX = (Math.random() * 2 - 1) * radius
-            const offsetY = (Math.random() * 2 - 1) * radius
-            const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
-            
-            if (distance <= radius) {
-              ctx.beginPath()
-              ctx.arc(point.x + offsetX, point.y + offsetY, 0.5, 0, Math.PI * 2)
-              ctx.fill()
-            }
+            const angle = Math.random() * Math.PI * 2
+            const radiusRandom = Math.sqrt(Math.random()) * radius
+            const particleX = point.x + Math.cos(angle) * radiusRandom
+            const particleY = point.y + Math.sin(angle) * radiusRandom
+
+            ctx.beginPath()
+            ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+            ctx.fill()
           }
         })
       } else {
@@ -197,7 +197,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     loadDrawings()
   }, [roomName])
 
-  const clearCanvasCompletely = useCallback(() => {
+  const clearCanvasCompletely = useCallback(async () => {
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -209,27 +209,38 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
     
     setSavedDrawings([])
-    // Broadcast clear event to all users
-    clearCanvas()
-  }, [clearCanvas])
+    // Save clear state to database and broadcast to all users
+    try {
+      await supabase
+        .from('drawing_data')
+        .delete()
+        .eq('room_name', roomName)
+      
+      clearCanvas() // Broadcast clear event
+    } catch (error) {
+      console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
+    }
+  }, [clearCanvas, roomName])
 
   const sprayEffect = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
-    const density = tools.size * 2 // More particles for larger sizes
-    const radius = tools.size
+    const density = tools.size * 3 // Increase density for more particles
+    const radius = tools.size * 1.5 // Larger spray area
+    const particleSize = 0.8 // Slightly larger particles
     
     ctx.fillStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
-    ctx.globalAlpha = (tools.opacity * 0.4) // Reduce opacity for spray effect
+    ctx.globalAlpha = tools.opacity * 0.6 // Adjust opacity for spray effect
 
     for (let i = 0; i < density; i++) {
-      const offsetX = (Math.random() * 2 - 1) * radius
-      const offsetY = (Math.random() * 2 - 1) * radius
-      const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
-      
-      if (distance <= radius) {
-        ctx.beginPath()
-        ctx.arc(x + offsetX, y + offsetY, 0.5, 0, Math.PI * 2)
-        ctx.fill()
-      }
+      // Use polar coordinates for better particle distribution
+      const angle = Math.random() * Math.PI * 2
+      // Square root for more even particle distribution
+      const radiusRandom = Math.sqrt(Math.random()) * radius
+      const particleX = x + Math.cos(angle) * radiusRandom
+      const particleY = y + Math.sin(angle) * radiusRandom
+
+      ctx.beginPath()
+      ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+      ctx.fill()
     }
   }, [tools])
 
@@ -417,21 +428,21 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
         if (points[0].tool === 'spray') {
           points.forEach(point => {
-            ctx.globalAlpha = point.opacity * 0.4
-            ctx.fillStyle = point.color
-            const density = point.size * 2
-            const radius = point.size
+            ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
+            ctx.globalAlpha = point.opacity * 0.6
+            const density = point.size * 3
+            const radius = point.size * 1.5
+            const particleSize = 0.8
 
             for (let i = 0; i < density; i++) {
-              const offsetX = (Math.random() * 2 - 1) * radius
-              const offsetY = (Math.random() * 2 - 1) * radius
-              const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
-              
-              if (distance <= radius) {
-                ctx.beginPath()
-                ctx.arc(point.x + offsetX, point.y + offsetY, 0.5, 0, Math.PI * 2)
-                ctx.fill()
-              }
+              const angle = Math.random() * Math.PI * 2
+              const radiusRandom = Math.sqrt(Math.random()) * radius
+              const particleX = point.x + Math.cos(angle) * radiusRandom
+              const particleY = point.y + Math.sin(angle) * radiusRandom
+
+              ctx.beginPath()
+              ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+              ctx.fill()
             }
           })
         } else {
