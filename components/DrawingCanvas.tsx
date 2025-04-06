@@ -147,14 +147,25 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
   }, [redrawCanvas])
 
+  // Initialize canvas size and setup
+  useEffect(() => {
+    resizeCanvas()
+    const debouncedResize = throttle(resizeCanvas, 250)
+    window.addEventListener('resize', debouncedResize)
+
+    return () => {
+      window.removeEventListener('resize', debouncedResize)
+    }
+  }, [resizeCanvas])
+
   // Update loadDrawings effect to store drawings in state
   useEffect(() => {
     const loadDrawings = async () => {
-      if (!canvasRef.current) return
+      const canvas = canvasRef.current
+      if (!canvas) return
 
       try {
         setIsLoading(true)
-        setError(null)
         
         const { data, error: supabaseError } = await supabase
           .from('drawing_data')
@@ -171,28 +182,17 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           redrawCanvas()
         }
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to load drawings')
         console.error('Error loading drawings:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load drawings')
       } finally {
         setIsLoading(false)
-        setIsInitialized(true)
       }
     }
 
-    loadDrawings()
-  }, [roomName, redrawCanvas])
-
-  // Initialize canvas size and setup
-  useEffect(() => {
-    if (!isInitialized) return
+    // Initialize canvas first
     resizeCanvas()
-    const debouncedResize = throttle(resizeCanvas, 250)
-    window.addEventListener('resize', debouncedResize)
-
-    return () => {
-      window.removeEventListener('resize', debouncedResize)
-    }
-  }, [resizeCanvas, isInitialized])
+    loadDrawings()
+  }, [roomName, redrawCanvas, resizeCanvas])
 
   // Listen for real-time drawing updates
   useEffect(() => {
@@ -587,8 +587,8 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         )}
         
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50 backdrop-blur-sm z-50">
-            <div className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg shadow-lg">
+          <div className="absolute top-4 right-4 px-4 py-2 bg-zinc-800/90 backdrop-blur-sm rounded-lg shadow-lg z-50">
+            <div className="flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
               <span className="text-sm text-zinc-400">Loading drawings...</span>
             </div>
