@@ -228,23 +228,26 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           }
         }
       })
-      .on('broadcast', { event: 'clear' }, () => {
+      .on('broadcast', { event: 'clear' }, async () => {
         // Clear canvas for all users
         const scale = window.devicePixelRatio || 1
         ctx.fillStyle = '#e8f5e9'
         ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
         setSavedDrawings([]) // Clear the saved drawings array
 
-        // Also clear from database
-        supabase
-          .from('drawing_data')
-          .delete()
-          .eq('room_name', roomName)
-          .then(({ error }) => {
-            if (error) {
-              console.error('Error clearing drawings from database:', error)
-            }
-          })
+        try {
+          // Delete all drawings from the database
+          const { error: deleteError } = await supabase
+            .from('drawing_data')
+            .delete()
+            .eq('room_name', roomName)
+
+          if (deleteError) {
+            console.error('Error clearing drawings from database:', deleteError.message)
+          }
+        } catch (error) {
+          console.error('Error during clear operation:', error)
+        }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -267,23 +270,27 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Clear the canvas
-    const scale = window.devicePixelRatio || 1
-    ctx.fillStyle = '#e8f5e9'
-    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-    
-    // Clear local state
-    setSavedDrawings([])
-
     try {
-      // Broadcast clear event to all users first
-      clearCanvas()
-
-      // Then delete all drawings from the database for this room
-      await supabase
+      // Delete all drawings from the database for this room first
+      const { error: deleteError } = await supabase
         .from('drawing_data')
         .delete()
         .eq('room_name', roomName)
+
+      if (deleteError) {
+        throw new Error(deleteError.message)
+      }
+
+      // Clear the canvas
+      const scale = window.devicePixelRatio || 1
+      ctx.fillStyle = '#e8f5e9'
+      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+      
+      // Clear local state
+      setSavedDrawings([])
+
+      // Broadcast clear event to all users
+      clearCanvas()
     } catch (error) {
       console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
     }
@@ -305,7 +312,8 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           throw new Error(supabaseError.message)
         }
 
-        if (data) {
+        // Only set and draw if we have data
+        if (data && data.length > 0) {
           setSavedDrawings(data)
           // Redraw all loaded drawings
           const canvas = canvasRef.current
@@ -357,6 +365,18 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
               ctx.stroke()
             }
           })
+        } else {
+          // If no data, ensure canvas is clear
+          const canvas = canvasRef.current
+          if (!canvas) return
+
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
+
+          const scale = window.devicePixelRatio || 1
+          ctx.fillStyle = '#e8f5e9'
+          ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+          setSavedDrawings([])
         }
       } catch (error) {
         console.error('Error loading drawings:', error)
