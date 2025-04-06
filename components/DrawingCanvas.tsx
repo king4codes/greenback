@@ -67,6 +67,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
   const [error, setError] = useState<string | null>(null)
   const [activeUsers, setActiveUsers] = useState<string[]>([])
   const [userColor] = useState(() => `hsl(${Math.random() * 360}, 70%, 50%)`)
+  const [savedDrawings, setSavedDrawings] = useState<Array<{ points: DrawPoint[] }>>([])
 
   const { cursors, updateCursor, broadcastDrawing, clearCanvas, isConnected } = useRealtimeDrawing(roomName, username)
 
@@ -82,6 +83,42 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
   }
 
+  const redrawCanvas = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const scale = window.devicePixelRatio || 1
+    const width = canvas.width / scale
+    const height = canvas.height / scale
+
+    // Clear canvas with background
+    ctx.fillStyle = '#e8f5e9'
+    ctx.fillRect(0, 0, width, height)
+
+    // Redraw all saved drawings
+    savedDrawings.forEach(drawing => {
+      const points = drawing.points
+      if (!Array.isArray(points) || points.length < 2) return
+
+      ctx.globalAlpha = points[0].opacity
+      ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+      ctx.lineWidth = points[0].size
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+
+      ctx.beginPath()
+      ctx.moveTo(points[0].x * (width / 1200), points[0].y * (height / 800))
+
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x * (width / 1200), points[i].y * (height / 800))
+      }
+      ctx.stroke()
+    })
+  }, [savedDrawings])
+
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -89,11 +126,8 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const container = canvas.parentElement
     if (!container) return
 
-    // Get the actual container dimensions
     const containerWidth = container.clientWidth
     const containerHeight = container.clientHeight
-
-    // Enforce maximum dimensions while maintaining aspect ratio
     const maxWidth = 1200
     const maxHeight = 800
     const scale = window.devicePixelRatio || 1
@@ -101,58 +135,19 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     let width = Math.min(containerWidth, maxWidth)
     let height = Math.min(containerHeight, maxHeight)
 
-    // Set canvas size to match container while maintaining aspect ratio
     canvas.width = width * scale
     canvas.height = height * scale
-
-    // Set display size
     canvas.style.width = `${width}px`
     canvas.style.height = `${height}px`
 
-    // Scale the context to account for device pixel ratio
     const ctx = canvas.getContext('2d')
     if (ctx) {
       ctx.scale(scale, scale)
-      ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, width, height)
+      redrawCanvas()
     }
-  }, [])
+  }, [redrawCanvas])
 
-  const clearCanvasCompletely = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    // Store the current transform
-    ctx.save()
-    
-    // Reset the transform to identity matrix
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    
-    // Clear the entire canvas
-    ctx.fillStyle = '#e8f5e9'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    
-    // Restore the transform
-    ctx.restore()
-    
-    // Broadcast the clear event
-    clearCanvas()
-  }, [clearCanvas])
-
-  useEffect(() => {
-    resizeCanvas()
-    const debouncedResize = debounce(resizeCanvas, 250)
-    window.addEventListener('resize', debouncedResize)
-
-    return () => {
-      window.removeEventListener('resize', debouncedResize)
-    }
-  }, [resizeCanvas])
-
-  // Load and render existing drawings
+  // Update loadDrawings effect to store drawings in state
   useEffect(() => {
     const loadDrawings = async () => {
       const canvas = canvasRef.current
@@ -172,101 +167,67 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           throw new Error(supabaseError.message)
         }
 
-        const ctx = canvas.getContext('2d')
-        if (!ctx) throw new Error('Could not get canvas context')
-
-        // Clear canvas before rendering saved drawings
-        ctx.fillStyle = '#e8f5e9'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-
         if (data) {
-          // Render each saved drawing
-          data.forEach(drawing => {
-            const points = drawing.points
-            if (!Array.isArray(points) || points.length < 2) return
-
-            ctx.globalAlpha = points[0].opacity
-            ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-            ctx.lineWidth = points[0].size
-            ctx.lineCap = 'round'
-            ctx.lineJoin = 'round'
-
-            ctx.beginPath()
-            ctx.moveTo(points[0].x, points[0].y)
-
-            for (let i = 1; i < points.length; i++) {
-              ctx.lineTo(points[i].x, points[i].y)
-            }
-            ctx.stroke()
-          })
+          setSavedDrawings(data)
+          redrawCanvas()
         }
-      } catch (err) {
-        console.error('Error loading drawings:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load drawings')
-      } finally {
+
+        setIsLoading(false)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to load drawings')
         setIsLoading(false)
       }
     }
 
     loadDrawings()
-  }, [roomName])
+  }, [roomName, redrawCanvas])
 
+  // Listen for real-time drawing updates
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
     const channel = supabase.channel(`drawing:${roomName}`)
-
-    channel
-      .on('broadcast', { event: 'draw' }, (payload: { payload: { points: DrawPoint[] } }) => {
-        if (payload.payload.points) {
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return
-
-          const points = payload.payload.points
-          if (!Array.isArray(points) || points.length < 2) return
-
-          ctx.globalAlpha = points[0].opacity
-          ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-          ctx.lineWidth = points[0].size
-          ctx.lineCap = 'round'
-          ctx.lineJoin = 'round'
-
-          ctx.beginPath()
-          ctx.moveTo(points[0].x, points[0].y)
-
-          for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y)
-          }
-          ctx.stroke()
-        }
-      })
-      .on('broadcast', { event: 'clear' }, () => {
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-
-        ctx.fillStyle = '#e8f5e9'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-      })
-      .subscribe()
+    
+    channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
+      if (payload.points) {
+        setSavedDrawings(prev => [...prev, { points: payload.points }])
+        redrawCanvas()
+      }
+    }).on('broadcast', { event: 'clear' }, () => {
+      setSavedDrawings([])
+      redrawCanvas()
+    }).subscribe()
 
     return () => {
       channel.unsubscribe()
     }
-  }, [roomName])
+  }, [roomName, redrawCanvas])
 
-  const handleClearCanvas = async () => {
+  const clearCanvasCompletely = useCallback(() => {
+    setSavedDrawings([])
     const canvas = canvasRef.current
     if (!canvas) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.fillStyle = '#e8f5e9'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    const scale = window.devicePixelRatio || 1
+    const width = canvas.width / scale
+    const height = canvas.height / scale
 
-    await clearCanvas()
-  }
+    ctx.fillStyle = '#e8f5e9'
+    ctx.fillRect(0, 0, width, height)
+    
+    clearCanvas()
+  }, [clearCanvas])
+
+  useEffect(() => {
+    resizeCanvas()
+    const debouncedResize = debounce(resizeCanvas, 250)
+    window.addEventListener('resize', debouncedResize)
+
+    return () => {
+      window.removeEventListener('resize', debouncedResize)
+    }
+  }, [resizeCanvas])
 
   const sprayEffect = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     const density = tools.size * 2; // More particles for larger sizes
