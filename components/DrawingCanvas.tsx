@@ -110,10 +110,10 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       ctx.lineJoin = 'round'
 
       ctx.beginPath()
-      ctx.moveTo(points[0].x * (width / 1200), points[0].y * (height / 800))
+      ctx.moveTo(points[0].x, points[0].y)
 
       for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x * (width / 1200), points[i].y * (height / 800))
+        ctx.lineTo(points[i].x, points[i].y)
       }
       ctx.stroke()
     })
@@ -126,20 +126,16 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const container = canvas.parentElement
     if (!container) return
 
-    const containerWidth = container.clientWidth
-    const containerHeight = container.clientHeight
-    const maxWidth = 1200
-    const maxHeight = 800
+    const rect = container.getBoundingClientRect()
     const scale = window.devicePixelRatio || 1
 
-    let width = Math.min(containerWidth, maxWidth)
-    let height = Math.min(containerHeight, maxHeight)
+    // Set canvas size to match container
+    canvas.width = rect.width * scale
+    canvas.height = rect.height * scale
+    canvas.style.width = `${rect.width}px`
+    canvas.style.height = `${rect.height}px`
 
-    canvas.width = width * scale
-    canvas.height = height * scale
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
-
+    // Scale context
     const ctx = canvas.getContext('2d')
     if (ctx) {
       ctx.scale(scale, scale)
@@ -147,7 +143,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
   }, [redrawCanvas])
 
-  // Initialize canvas size and setup
+  // Initialize canvas once
   useEffect(() => {
     resizeCanvas()
     const debouncedResize = throttle(resizeCanvas, 250)
@@ -158,12 +154,9 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
   }, [resizeCanvas])
 
-  // Update loadDrawings effect to store drawings in state
+  // Load drawings once
   useEffect(() => {
     const loadDrawings = async () => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-
       try {
         setIsLoading(true)
         
@@ -179,7 +172,6 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
         if (data) {
           setSavedDrawings(data)
-          redrawCanvas()
         }
       } catch (error) {
         console.error('Error loading drawings:', error)
@@ -189,29 +181,52 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       }
     }
 
-    // Initialize canvas first
-    resizeCanvas()
     loadDrawings()
-  }, [roomName, redrawCanvas, resizeCanvas])
+  }, [roomName])
 
   // Listen for real-time drawing updates
   useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
     const channel = supabase.channel(`drawing:${roomName}`)
     
     channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
       if (payload.points) {
-        setSavedDrawings(prev => [...prev, { points: payload.points }])
-        redrawCanvas()
+        const points = payload.points
+        if (!Array.isArray(points) || points.length < 2) return
+
+        // Draw the new points directly
+        ctx.globalAlpha = points[0].opacity
+        ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+        ctx.lineWidth = points[0].size
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+
+        ctx.beginPath()
+        ctx.moveTo(points[0].x, points[0].y)
+
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y)
+        }
+        ctx.stroke()
+
+        // Update state without triggering redraw
+        setSavedDrawings(prev => [...prev, { points }])
       }
     }).on('broadcast', { event: 'clear' }, () => {
       setSavedDrawings([])
-      redrawCanvas()
+      ctx.fillStyle = '#e8f5e9'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
     }).subscribe()
 
     return () => {
       channel.unsubscribe()
     }
-  }, [roomName, redrawCanvas])
+  }, [roomName])
 
   const clearCanvasCompletely = useCallback(() => {
     setSavedDrawings([])
@@ -256,16 +271,15 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     if (!canvas) return { x: 0, y: 0 }
 
     const rect = canvas.getBoundingClientRect()
-    const scale = canvas.width / rect.width // Account for device pixel ratio
     
-    let x = (e.clientX - rect.left) * scale
-    let y = (e.clientY - rect.top) * scale
+    let x = e.clientX - rect.left
+    let y = e.clientY - rect.top
 
     // Constrain coordinates to canvas boundaries
-    x = Math.max(0, Math.min(x, canvas.width))
-    y = Math.max(0, Math.min(y, canvas.height))
+    x = Math.max(0, Math.min(x, rect.width))
+    y = Math.max(0, Math.min(y, rect.height))
 
-    return { x: x / scale, y: y / scale } // Convert back to display coordinates
+    return { x, y }
   }
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
