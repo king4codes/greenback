@@ -12,11 +12,13 @@ export default function Draw() {
 
   return (
     <MainLayout>
-      <div className="flex-1 relative" ref={containerRef}>
-        <DrawingCanvas
-          roomName="main-room"
-          username={username}
-        />
+      <div className="flex-1 relative flex justify-center" ref={containerRef}>
+        <div className="w-full max-w-[1200px]">
+          <DrawingCanvas
+            roomName="main-room"
+            username={username}
+          />
+        </div>
       </div>
     </MainLayout>
   )

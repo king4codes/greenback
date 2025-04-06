@@ -93,28 +93,54 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const containerWidth = container.clientWidth
     const containerHeight = container.clientHeight
 
-    // Only resize if dimensions have changed
-    if (canvas.width === containerWidth && canvas.height === containerHeight) {
-      return
-    }
+    // Enforce maximum dimensions while maintaining aspect ratio
+    const maxWidth = 1200
+    const maxHeight = 800
+    const scale = window.devicePixelRatio || 1
+
+    let width = Math.min(containerWidth, maxWidth)
+    let height = Math.min(containerHeight, maxHeight)
 
     // Set canvas size to match container while maintaining aspect ratio
-    const scale = window.devicePixelRatio || 1
-    canvas.width = containerWidth * scale
-    canvas.height = containerHeight * scale
+    canvas.width = width * scale
+    canvas.height = height * scale
 
     // Set display size
-    canvas.style.width = `${containerWidth}px`
-    canvas.style.height = `${containerHeight}px`
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
 
     // Scale the context to account for device pixel ratio
     const ctx = canvas.getContext('2d')
     if (ctx) {
       ctx.scale(scale, scale)
       ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, containerWidth, containerHeight)
+      ctx.fillRect(0, 0, width, height)
     }
   }, [])
+
+  const clearCanvasCompletely = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Store the current transform
+    ctx.save()
+    
+    // Reset the transform to identity matrix
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    
+    // Clear the entire canvas
+    ctx.fillStyle = '#e8f5e9'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    
+    // Restore the transform
+    ctx.restore()
+    
+    // Broadcast the clear event
+    clearCanvas()
+  }, [clearCanvas])
 
   useEffect(() => {
     resizeCanvas()
@@ -520,7 +546,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
           <button
             className="px-3 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
-            onClick={handleClearCanvas}
+            onClick={clearCanvasCompletely}
           >
             <Trash2 size={16} className="inline-block mr-1" />
             Clear
