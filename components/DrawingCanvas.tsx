@@ -93,21 +93,42 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     // Redraw all saved drawings
     savedDrawings.forEach(drawing => {
       const points = drawing.points
-      if (!Array.isArray(points) || points.length < 2) return
+      if (!Array.isArray(points) || points.length < 1) return
 
-      ctx.globalAlpha = points[0].opacity
-      ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-      ctx.lineWidth = points[0].size
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
+      if (points[0].tool === 'spray') {
+        points.forEach(point => {
+          ctx.globalAlpha = point.opacity * 0.4
+          ctx.fillStyle = point.color
+          const density = point.size * 2
+          const radius = point.size
 
-      ctx.beginPath()
-      ctx.moveTo(points[0].x, points[0].y)
+          for (let i = 0; i < density; i++) {
+            const offsetX = (Math.random() * 2 - 1) * radius
+            const offsetY = (Math.random() * 2 - 1) * radius
+            const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
+            
+            if (distance <= radius) {
+              ctx.beginPath()
+              ctx.arc(point.x + offsetX, point.y + offsetY, 0.5, 0, Math.PI * 2)
+              ctx.fill()
+            }
+          }
+        })
+      } else {
+        ctx.globalAlpha = points[0].opacity
+        ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+        ctx.lineWidth = points[0].size
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
 
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y)
+        ctx.beginPath()
+        ctx.moveTo(points[0].x, points[0].y)
+
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y)
+        }
+        ctx.stroke()
       }
-      ctx.stroke()
     })
   }, [savedDrawings])
 
@@ -193,21 +214,22 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
   }, [clearCanvas])
 
   const sprayEffect = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
-    const density = 50
+    const density = tools.size * 2 // More particles for larger sizes
     const radius = tools.size
-
-    ctx.globalAlpha = tools.opacity / 2
-    ctx.fillStyle = tools.color
+    
+    ctx.fillStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
+    ctx.globalAlpha = (tools.opacity * 0.4) // Reduce opacity for spray effect
 
     for (let i = 0; i < density; i++) {
-      const angle = Math.random() * Math.PI * 2
-      const radiusRandom = Math.random() * radius
-      const sprayX = x + Math.cos(angle) * radiusRandom
-      const sprayY = y + Math.sin(angle) * radiusRandom
-
-      ctx.beginPath()
-      ctx.arc(sprayX, sprayY, 0.5, 0, Math.PI * 2)
-      ctx.fill()
+      const offsetX = (Math.random() * 2 - 1) * radius
+      const offsetY = (Math.random() * 2 - 1) * radius
+      const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
+      
+      if (distance <= radius) {
+        ctx.beginPath()
+        ctx.arc(x + offsetX, y + offsetY, 0.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
   }, [tools])
 
@@ -295,16 +317,20 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       timestamp: Date.now()
     };
 
+    if (tools.tool === 'spray') {
+      sprayEffect(ctx, x, y);
+    }
+
     setCurrentPath(prev => {
       const updatedPath = [...prev, newPoint];
-      if (updatedPath.length > 1) {
+      if (updatedPath.length > 1 && tools.tool !== 'spray') {
         drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
       }
       return updatedPath;
     });
 
     updateCursor(x, y);
-  }, [isDrawing, tools, drawPath, updateCursor]);
+  }, [isDrawing, tools, drawPath, updateCursor, sprayEffect]);
 
   const finishDrawing = useCallback(() => {
     if (!isDrawing) return;
@@ -387,22 +413,42 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
       if (payload.points) {
         const points = payload.points
-        if (!Array.isArray(points) || points.length < 2) return
+        if (!Array.isArray(points) || points.length < 1) return
 
-        // Draw the new points
-        ctx.globalAlpha = points[0].opacity
-        ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-        ctx.lineWidth = points[0].size
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
+        if (points[0].tool === 'spray') {
+          points.forEach(point => {
+            ctx.globalAlpha = point.opacity * 0.4
+            ctx.fillStyle = point.color
+            const density = point.size * 2
+            const radius = point.size
 
-        ctx.beginPath()
-        ctx.moveTo(points[0].x, points[0].y)
+            for (let i = 0; i < density; i++) {
+              const offsetX = (Math.random() * 2 - 1) * radius
+              const offsetY = (Math.random() * 2 - 1) * radius
+              const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
+              
+              if (distance <= radius) {
+                ctx.beginPath()
+                ctx.arc(point.x + offsetX, point.y + offsetY, 0.5, 0, Math.PI * 2)
+                ctx.fill()
+              }
+            }
+          })
+        } else {
+          ctx.globalAlpha = points[0].opacity
+          ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+          ctx.lineWidth = points[0].size
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
 
-        for (let i = 1; i < points.length; i++) {
-          ctx.lineTo(points[i].x, points[i].y)
+          ctx.beginPath()
+          ctx.moveTo(points[0].x, points[0].y)
+
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y)
+          }
+          ctx.stroke()
         }
-        ctx.stroke()
 
         // Update state
         setSavedDrawings(prev => [...prev, { points: [...points] }])
@@ -514,16 +560,20 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       timestamp: Date.now()
     };
 
+    if (tools.tool === 'spray') {
+      sprayEffect(ctx, x, y);
+    }
+
     setCurrentPath(prev => {
       const updatedPath = [...prev, newPoint];
-      if (updatedPath.length > 1) {
+      if (updatedPath.length > 1 && tools.tool !== 'spray') {
         drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
       }
       return updatedPath;
     });
 
     updateCursor(x, y);
-  }, [isDrawing, tools, drawPath, updateCursor]);
+  }, [isDrawing, tools, drawPath, updateCursor, sprayEffect]);
 
   return (
     <div className="flex flex-col h-[800px] bg-zinc-900 border border-zinc-800">
