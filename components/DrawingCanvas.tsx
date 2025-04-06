@@ -64,21 +64,25 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       const container = canvas.parentElement
       if (!container) return
 
-      // Set canvas size to match container while maintaining aspect ratio
+      // Get the actual container dimensions
       const containerWidth = container.clientWidth
       const containerHeight = container.clientHeight
-      const scale = window.devicePixelRatio || 1
 
+      // Set canvas size to match container while maintaining aspect ratio
+      const scale = window.devicePixelRatio || 1
       canvas.width = containerWidth * scale
       canvas.height = containerHeight * scale
+
+      // Set display size
       canvas.style.width = `${containerWidth}px`
       canvas.style.height = `${containerHeight}px`
 
+      // Scale the context to account for device pixel ratio
       const ctx = canvas.getContext('2d')
       if (ctx) {
         ctx.scale(scale, scale)
         ctx.fillStyle = '#e8f5e9'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.fillRect(0, 0, containerWidth, containerHeight)
       }
     }
 
@@ -241,15 +245,30 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
   }
 
+  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+    const scale = canvas.width / rect.width // Account for device pixel ratio
+    
+    let x = (e.clientX - rect.left) * scale
+    let y = (e.clientY - rect.top) * scale
+
+    // Constrain coordinates to canvas boundaries
+    x = Math.max(0, Math.min(x, canvas.width))
+    y = Math.max(0, Math.min(y, canvas.height))
+
+    return { x: x / scale, y: y / scale } // Convert back to display coordinates
+  }
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
+    const { x, y } = getCanvasCoordinates(e)
     setIsDrawing(true)
+    
     pointsRef.current = [{
       x,
       y,
@@ -261,7 +280,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const ctx = canvas.getContext('2d')
     if (ctx) {
       if (tools.tool === 'spray') {
-        sprayEffect(ctx, x, y);
+        sprayEffect(ctx, x, y)
       } else {
         ctx.globalAlpha = tools.opacity
         ctx.fillStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
@@ -273,8 +292,8 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       // Track achievement when user starts drawing
       if (user?.id) {
         earnAchievement('artist').catch(err => {
-          console.error('Error earning artist achievement:', err);
-        });
+          console.error('Error earning artist achievement:', err)
+        })
       }
     }
   }
@@ -288,18 +307,10 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const rect = canvas.getBoundingClientRect()
-    let x = e.clientX - rect.left
-    let y = e.clientY - rect.top
-
-    // Project the coordinates to the nearest canvas edge when outside
-    if (x < 0) x = 0
-    if (x > canvas.width) x = canvas.width
-    if (y < 0) y = 0
-    if (y > canvas.height) y = canvas.height
+    const { x, y } = getCanvasCoordinates(e)
 
     if (tools.tool === 'spray') {
-      sprayEffect(ctx, x, y);
+      sprayEffect(ctx, x, y)
     } else {
       ctx.globalAlpha = tools.opacity
       ctx.strokeStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
@@ -519,7 +530,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           className="absolute inset-0 m-8 rounded-lg overflow-hidden"
           style={{
             background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
-            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4)',
+            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
             border: '2px solid #4A2810'
           }}
         >
@@ -559,34 +570,36 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
           {/* Inner shadow */}
           <div 
-            className="absolute inset-4 pointer-events-none"
+            className="absolute inset-0 pointer-events-none"
             style={{
-              boxShadow: 'inset 0 0 15px rgba(0,0,0,0.3)'
+              boxShadow: 'inset 0 0 30px rgba(0,0,0,0.4)'
             }}
           />
         </div>
 
         {/* Canvas container */}
-        <div className="relative h-full mx-12 my-12 bg-[#e8f5e9] rounded-lg overflow-hidden">
-          <canvas
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onClick={handleCanvasClick}
-            className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
-          />
-
-          {/* Cursors */}
-          {cursors.map(([key, cursor]) => (
-            <Cursor
-              key={key}
-              x={cursor.x}
-              y={cursor.y}
-              color={cursor.color}
-              name={cursor.name}
+        <div className="relative h-full mx-12 my-12">
+          <div className="absolute inset-0 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
+            <canvas
+              ref={canvasRef}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onClick={handleCanvasClick}
+              className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
             />
-          ))}
+
+            {/* Cursors */}
+            {cursors.map(([key, cursor]) => (
+              <Cursor
+                key={key}
+                x={cursor.x}
+                y={cursor.y}
+                color={cursor.color}
+                name={cursor.name}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
