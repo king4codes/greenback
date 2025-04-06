@@ -177,62 +177,88 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
     const channel = supabase.channel(`drawing:${roomName}`)
     
-    channel.on('broadcast', { event: 'draw' }, ({ payload }) => {
-      if (payload.points) {
-        const points = payload.points
-        if (!Array.isArray(points) || points.length < 1) return
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        const users = Object.values(state).flat()
+        setActiveUsers(users.map((u: any) => u.username))
+      })
+      .on('broadcast', { event: 'draw' }, ({ payload }) => {
+        if (payload.points) {
+          const points = payload.points
+          if (!Array.isArray(points) || points.length < 1) return
 
-        // Add the new drawing to savedDrawings first
-        setSavedDrawings(prev => [...prev, { points: [...points] }])
+          // Add the new drawing to savedDrawings first
+          setSavedDrawings(prev => [...prev, { points: [...points] }])
 
-        // Then draw it on the canvas
-        if (points[0].tool === 'spray') {
-          points.forEach(point => {
-            ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
-            ctx.globalAlpha = point.opacity * 0.6
-            const density = point.size * 3
-            const radius = point.size * 1.5
-            const particleSize = 0.8
+          // Then draw it on the canvas
+          if (points[0].tool === 'spray') {
+            points.forEach(point => {
+              ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
+              ctx.globalAlpha = point.opacity * 0.6
+              const density = point.size * 3
+              const radius = point.size * 1.5
+              const particleSize = 0.8
 
-            for (let i = 0; i < density; i++) {
-              const angle = Math.random() * Math.PI * 2
-              const radiusRandom = Math.sqrt(Math.random()) * radius
-              const particleX = point.x + Math.cos(angle) * radiusRandom
-              const particleY = point.y + Math.sin(angle) * radiusRandom
+              for (let i = 0; i < density; i++) {
+                const angle = Math.random() * Math.PI * 2
+                const radiusRandom = Math.sqrt(Math.random()) * radius
+                const particleX = point.x + Math.cos(angle) * radiusRandom
+                const particleY = point.y + Math.sin(angle) * radiusRandom
 
-              ctx.beginPath()
-              ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
-              ctx.fill()
+                ctx.beginPath()
+                ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+                ctx.fill()
+              }
+            })
+          } else {
+            ctx.globalAlpha = points[0].opacity
+            ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+            ctx.lineWidth = points[0].size
+            ctx.lineCap = 'round'
+            ctx.lineJoin = 'round'
+
+            ctx.beginPath()
+            ctx.moveTo(points[0].x, points[0].y)
+
+            for (let i = 1; i < points.length; i++) {
+              ctx.lineTo(points[i].x, points[i].y)
+            }
+            ctx.stroke()
+          }
+        }
+      })
+      .on('broadcast', { event: 'clear' }, () => {
+        // Clear canvas for all users
+        const scale = window.devicePixelRatio || 1
+        ctx.fillStyle = '#e8f5e9'
+        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+        setSavedDrawings([]) // Clear the saved drawings array
+
+        // Also clear from database
+        supabase
+          .from('drawing_data')
+          .delete()
+          .eq('room_name', roomName)
+          .then(({ error }) => {
+            if (error) {
+              console.error('Error clearing drawings from database:', error)
             }
           })
-        } else {
-          ctx.globalAlpha = points[0].opacity
-          ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-          ctx.lineWidth = points[0].size
-          ctx.lineCap = 'round'
-          ctx.lineJoin = 'round'
-
-          ctx.beginPath()
-          ctx.moveTo(points[0].x, points[0].y)
-
-          for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y)
-          }
-          ctx.stroke()
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            username,
+            online_at: new Date().toISOString(),
+          })
         }
-      }
-    }).on('broadcast', { event: 'clear' }, () => {
-      // Clear canvas for all users
-      const scale = window.devicePixelRatio || 1
-      ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-      setSavedDrawings([]) // Clear the saved drawings array
-    }).subscribe()
+      })
 
     return () => {
       channel.unsubscribe()
     }
-  }, [roomName])
+  }, [roomName, username])
 
   const clearCanvasCompletely = useCallback(async () => {
     const canvas = canvasRef.current
@@ -250,14 +276,14 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     setSavedDrawings([])
 
     try {
-      // Delete all drawings from the database for this room
+      // Broadcast clear event to all users first
+      clearCanvas()
+
+      // Then delete all drawings from the database for this room
       await supabase
         .from('drawing_data')
         .delete()
         .eq('room_name', roomName)
-      
-      // Broadcast clear event to all users
-      clearCanvas()
     } catch (error) {
       console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
     }
@@ -471,10 +497,13 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     
     // Save the completed path
     if (currentPath.length > 1) {
+      // Update local state first
       setSavedDrawings(prev => [...prev, { points: currentPath }]);
+      
+      // Then broadcast to other users
       broadcastDrawing(currentPath);
       
-      // Save to database
+      // Finally save to database
       supabase
         .from('drawing_data')
         .insert({
