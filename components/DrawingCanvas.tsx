@@ -353,13 +353,27 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
       setSavedDrawings(prev => [...prev, { points: currentPath }]);
       broadcastDrawing(currentPath);
       
+      // Save to database
+      supabase
+        .from('drawing_data')
+        .insert({
+          room_name: roomName,
+          points: currentPath,
+          created_at: new Date().toISOString()
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.error('Error saving drawing:', error.message);
+          }
+        });
+      
       if (onDraw) {
         onDraw(currentPath);
       }
     }
     
     setCurrentPath([]);
-  }, [isDrawing, currentPath, broadcastDrawing, onDraw]);
+  }, [isDrawing, currentPath, broadcastDrawing, onDraw, roomName]);
 
   // Add window-level mouse event handlers for continuous drawing
   useEffect(() => {
@@ -461,8 +475,20 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           ctx.stroke()
         }
 
-        // Update state
+        // Update state and save to database
         setSavedDrawings(prev => [...prev, { points: [...points] }])
+        supabase
+          .from('drawing_data')
+          .insert({
+            room_name: roomName,
+            points: points,
+            created_at: new Date().toISOString()
+          })
+          .then(({ error }) => {
+            if (error) {
+              console.error('Error saving drawing:', error.message);
+            }
+          });
       }
     }).on('broadcast', { event: 'clear' }, () => {
       // Clear canvas for all users
