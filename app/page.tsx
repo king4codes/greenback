@@ -80,7 +80,7 @@ export default function Home() {
         <div className="relative flex flex-col h-full">
           <div className="flex items-center gap-3 mb-4">
             <feature.icon className="w-6 h-6 text-green-400" />
-            <h2 className="font-garamond text-xl text-green-400">{feature.title}</h2>
+            <h2 className="font-garamond text-2xl font-bold italic text-green-400">{feature.title}</h2>
           </div>
           <p className="text-sm text-zinc-400 flex-grow">
             {feature.description}
@@ -105,7 +105,7 @@ export default function Home() {
 
         {/* Welcome Text */}
         <div className="text-center space-y-4">
-          <h1 className="font-garamond text-4xl text-green-400">Welcome to PrintGreen™</h1>
+          <h1 className="font-garamond text-5xl font-bold italic text-green-400">Welcome to PrintGreen™</h1>
           <p className="font-mono text-zinc-400">
             SUSTAINABLY SOURCED FREERANGE<br />
             COMPUTE POWERING ORGANIC HALAL<br />

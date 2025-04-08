@@ -69,7 +69,7 @@ export default function MarketsPage() {
     <MainLayout>
       <div className="space-y-4">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="font-garamond text-3xl text-green-400">GreenMarkets</h1>
+          <h1 className="font-garamond text-4xl font-bold italic text-green-400">GreenMarkets</h1>
           <div className="text-sm font-mono text-zinc-400">
             {connected 
               ? 'Connected to live market data' 

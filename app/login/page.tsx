@@ -26,7 +26,7 @@ export default function LoginPage() {
     <MainLayout>
       <div className="max-w-2xl mx-auto py-8">
         <div className="text-center mb-8">
-          <h1 className="font-garamond text-3xl text-green-400 mb-4">
+          <h1 className="font-garamond text-4xl font-bold italic text-green-400 mb-4">
             Welcome Back
           </h1>
           <p className="text-zinc-400 font-mono text-sm">

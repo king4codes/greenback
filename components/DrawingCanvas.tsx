@@ -180,11 +180,16 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     }
 
     const handleClearEvent = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
       const ctx = canvas.getContext('2d')
       if (!ctx) return
 
+      const scale = window.devicePixelRatio || 1
       ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.globalAlpha = 1
+      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
     }
 
     const channel = supabase.channel(`drawing:${roomName}`)
@@ -219,8 +224,10 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    const scale = window.devicePixelRatio || 1
     ctx.fillStyle = '#e8f5e9'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.globalAlpha = 1
+    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
 
     await clearCanvas()
   }
@@ -401,8 +408,8 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
   }, [isDrawing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex flex-col h-[750px] bg-zinc-900 border border-zinc-800">
-      <div className="flex flex-wrap items-center gap-2 p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+    <div className="flex flex-col aspect-square max-w-[800px] w-full bg-zinc-900 border border-zinc-800">
+      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
         <div className="flex flex-wrap items-center gap-2">
           <button
             className={`px-3 py-1 rounded ${
@@ -525,13 +532,14 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         </div>
       </div>
 
-      <div className="relative flex-1 p-8">
+      <div className="relative flex-1 p-2 overflow-hidden">
         <div 
-          className="absolute inset-0 m-8 rounded-lg overflow-hidden"
+          className="absolute inset-0 m-2 rounded-lg overflow-hidden"
           style={{
             background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
             boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
-            border: '2px solid #4A2810'
+            border: '2px solid #4A2810',
+            height: 'calc(100% - 16px)'
           }}
         >
           <div 
@@ -543,26 +551,26 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
           />
 
           {/* Corner screws */}
-          <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+          <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
               <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
               <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
             </div>
           </div>
-          <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
               <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
               <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
             </div>
           </div>
-          <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+          <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
               <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
               <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
             </div>
           </div>
-          <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+          <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
               <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
               <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
             </div>
@@ -578,7 +586,7 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         </div>
 
         {/* Canvas container */}
-        <div className="relative h-full mx-12 my-12">
+        <div className="relative h-[calc(100%-48px)] mx-8 my-8">
           <div className="absolute inset-0 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
             <canvas
               ref={canvasRef}
