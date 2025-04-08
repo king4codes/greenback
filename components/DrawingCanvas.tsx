@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Eraser, Paintbrush, Trash2, Users, Type } from 'lucide-react'
 import { useRealtimeDrawing } from '@/hooks/use-realtime-drawing'
 import { useAuth } from '@/lib/auth'
@@ -31,16 +31,6 @@ interface DrawingTools {
   text?: string
 }
 
-interface DrawPoint {
-  x: number
-  y: number
-  color: string
-  size: number
-  opacity: number
-  tool: 'brush' | 'eraser' | 'text' | 'spray'
-  timestamp: number
-}
-
 export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
@@ -54,164 +44,87 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     tool: 'brush',
     text: ''
   })
-  const [currentPath, setCurrentPath] = useState<DrawPoint[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [activeUsers, setActiveUsers] = useState<string[]>([])
-  const [userColor] = useState(() => `hsl(${Math.random() * 360}, 70%, 50%)`)
-  const [savedDrawings, setSavedDrawings] = useState<Array<{ points: DrawPoint[] }>>([])
-  const [isInitialized, setIsInitialized] = useState(false)
+  const pointsRef = useRef<Array<{
+    x: number
+    y: number
+    color: string
+    size: number
+    opacity: number
+    tool: 'brush' | 'eraser' | 'text' | 'spray'
+    timestamp: number
+  }>>([])
 
   const { cursors, updateCursor, broadcastDrawing, clearCanvas, isConnected } = useRealtimeDrawing(roomName, username)
 
-  const throttle = (func: Function, limit: number) => {
-    let inThrottle: boolean
-    return function(...args: any[]) {
-      if (!inThrottle) {
-        func(...args)
-        inThrottle = true
-        setTimeout(() => inThrottle = false, limit)
-      }
-    }
-  }
-
-  const redrawCanvas = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const scale = window.devicePixelRatio || 1
-    const width = canvas.width / scale
-    const height = canvas.height / scale
-
-    // Clear canvas with background
-    ctx.fillStyle = '#e8f5e9'
-    ctx.fillRect(0, 0, width, height)
-
-    // Redraw all saved drawings
-    savedDrawings.forEach(drawing => {
-      const points = drawing.points
-      if (!Array.isArray(points) || points.length < 1) return
-
-      if (points[0].tool === 'spray') {
-        points.forEach(point => {
-          ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
-          ctx.globalAlpha = point.opacity * 0.6
-          const density = point.size * 3
-          const radius = point.size * 1.5
-          const particleSize = 0.8
-
-          for (let i = 0; i < density; i++) {
-            const angle = Math.random() * Math.PI * 2
-            const radiusRandom = Math.sqrt(Math.random()) * radius
-            const particleX = point.x + Math.cos(angle) * radiusRandom
-            const particleY = point.y + Math.sin(angle) * radiusRandom
-
-            ctx.beginPath()
-            ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
-            ctx.fill()
-          }
-        })
-      } else {
-        ctx.globalAlpha = points[0].opacity
-        ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-        ctx.lineWidth = points[0].size
-        ctx.lineCap = 'round'
-        ctx.lineJoin = 'round'
-
-        ctx.beginPath()
-        ctx.moveTo(points[0].x, points[0].y)
-
-        for (let i = 1; i < points.length; i++) {
-          ctx.lineTo(points[i].x, points[i].y)
-        }
-        ctx.stroke()
-      }
-    })
-  }, [savedDrawings])
-
-  const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const container = canvas.parentElement
-    if (!container) return
-
-    const rect = container.getBoundingClientRect()
-    const scale = window.devicePixelRatio || 1
-
-    // Set canvas size to match container
-    canvas.width = rect.width * scale
-    canvas.height = rect.height * scale
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
-
-    // Scale context
-    const ctx = canvas.getContext('2d')
-    if (ctx) {
-      ctx.scale(scale, scale)
-      redrawCanvas()
-    }
-  }, [redrawCanvas])
-
-  // Initialize canvas once
   useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const resizeCanvas = () => {
+      const container = canvas.parentElement
+      if (!container) return
+
+      // Get the actual container dimensions
+      const containerWidth = container.clientWidth
+      const containerHeight = container.clientHeight
+
+      // Set canvas size to match container while maintaining aspect ratio
+      const scale = window.devicePixelRatio || 1
+      canvas.width = containerWidth * scale
+      canvas.height = containerHeight * scale
+
+      // Set display size
+      canvas.style.width = `${containerWidth}px`
+      canvas.style.height = `${containerHeight}px`
+
+      // Scale the context to account for device pixel ratio
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.scale(scale, scale)
+        ctx.fillStyle = '#e8f5e9'
+        ctx.fillRect(0, 0, containerWidth, containerHeight)
+      }
+    }
+
     resizeCanvas()
-    const debouncedResize = throttle(resizeCanvas, 250)
-    window.addEventListener('resize', debouncedResize)
+    window.addEventListener('resize', resizeCanvas)
 
     return () => {
-      window.removeEventListener('resize', debouncedResize)
+      window.removeEventListener('resize', resizeCanvas)
     }
-  }, [resizeCanvas])
+  }, [])
 
-  // Update the channel listener to properly handle real-time drawing updates
+  // Load and render existing drawings
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const loadDrawings = async () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
 
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+      try {
+        const { data, error } = await supabase
+          .from('drawing_data')
+          .select('points')
+          .eq('room_name', roomName)
+          .order('created_at', { ascending: true });
 
-    const channel = supabase.channel(`drawing:${roomName}`)
-    
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState()
-        const users = Object.values(state).flat()
-        setActiveUsers(users.map((u: any) => u.username))
-      })
-      .on('broadcast', { event: 'draw' }, ({ payload }) => {
-        if (payload.points) {
-          const points = payload.points
-          if (!Array.isArray(points) || points.length < 1) return
+        if (error) {
+          console.error('Error loading drawings:', error);
+          return;
+        }
 
-          // Add the new drawing to savedDrawings first
-          setSavedDrawings(prev => [...prev, { points: [...points] }])
+        if (data) {
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
 
-          // Then draw it on the canvas
-          if (points[0].tool === 'spray') {
-            points.forEach(point => {
-              ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
-              ctx.globalAlpha = point.opacity * 0.6
-              const density = point.size * 3
-              const radius = point.size * 1.5
-              const particleSize = 0.8
+          // Clear canvas before rendering saved drawings
+          ctx.fillStyle = '#e8f5e9'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-              for (let i = 0; i < density; i++) {
-                const angle = Math.random() * Math.PI * 2
-                const radiusRandom = Math.sqrt(Math.random()) * radius
-                const particleX = point.x + Math.cos(angle) * radiusRandom
-                const particleY = point.y + Math.sin(angle) * radiusRandom
+          // Render each saved drawing
+          data.forEach(drawing => {
+            const points = drawing.points
+            if (!Array.isArray(points) || points.length < 2) return
 
-                ctx.beginPath()
-                ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
-                ctx.fill()
-              }
-            })
-          } else {
             ctx.globalAlpha = points[0].opacity
             ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
             ctx.lineWidth = points[0].size
@@ -225,256 +138,150 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
               ctx.lineTo(points[i].x, points[i].y)
             }
             ctx.stroke()
-          }
-        }
-      })
-      .on('broadcast', { event: 'clear' }, async () => {
-        // Clear canvas for all users
-        const scale = window.devicePixelRatio || 1
-        ctx.fillStyle = '#e8f5e9'
-        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-        setSavedDrawings([]) // Clear the saved drawings array
-
-        try {
-          // Delete all drawings from the database
-          const { error: deleteError } = await supabase
-            .from('drawing_data')
-            .delete()
-            .eq('room_name', roomName)
-
-          if (deleteError) {
-            console.error('Error clearing drawings from database:', deleteError.message)
-          }
-        } catch (error) {
-          console.error('Error during clear operation:', error)
-        }
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({
-            username,
-            online_at: new Date().toISOString(),
           })
         }
-      })
-
-    return () => {
-      channel.unsubscribe()
-    }
-  }, [roomName, username])
-
-  const clearCanvasCompletely = useCallback(async () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    try {
-      // First, delete all drawings from the database for this room
-      const { error: deleteError } = await supabase
-        .from('drawing_data')
-        .delete()
-        .eq('room_name', roomName)
-
-      if (deleteError) {
-        throw new Error(deleteError.message)
-      }
-
-      // Clear local canvas
-      const scale = window.devicePixelRatio || 1
-      ctx.fillStyle = '#e8f5e9'
-      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-      
-      // Clear local state
-      setSavedDrawings([])
-
-      // Broadcast clear event to all users
-      clearCanvas()
-
-      // Store the clear timestamp in a separate table
-      const { error: clearError } = await supabase
-        .from('canvas_clear_events')
-        .insert({
-          room_name: roomName,
-          cleared_at: new Date().toISOString()
-        })
-
-      if (clearError) {
-        console.error('Error storing clear event:', clearError)
-      }
-    } catch (error) {
-      console.error('Error clearing drawings:', error instanceof Error ? error.message : 'Unknown error')
-    }
-  }, [clearCanvas, roomName])
-
-  // Load drawings once and set up real-time subscription
-  useEffect(() => {
-    const loadDrawings = async () => {
-      try {
-        setIsLoading(true)
-        
-        // First get the latest clear event timestamp
-        const { data: clearEvent, error: clearError } = await supabase
-          .from('canvas_clear_events')
-          .select('cleared_at')
-          .eq('room_name', roomName)
-          .order('cleared_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        if (clearError && clearError.code !== 'PGRST116') {
-          console.error('Error checking clear events:', clearError)
-        }
-
-        const lastClearTime = clearEvent?.cleared_at
-
-        // Only fetch drawings created after the last clear event
-        const { data, error: drawingsError } = await supabase
-          .from('drawing_data')
-          .select('*')
-          .eq('room_name', roomName)
-          .order('created_at', { ascending: true })
-
-        if (drawingsError) {
-          throw new Error(drawingsError.message)
-        }
-
-        // Filter drawings to only show those after the last clear
-        const filteredDrawings = lastClearTime
-          ? data.filter(drawing => drawing.created_at > lastClearTime)
-          : data
-
-        // Clear canvas first
-        const canvas = canvasRef.current
-        if (!canvas) return
-
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-
-        const scale = window.devicePixelRatio || 1
-        ctx.fillStyle = '#e8f5e9'
-        ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
-
-        // Set state and redraw filtered drawings
-        setSavedDrawings(filteredDrawings)
-
-        // Redraw filtered drawings
-        if (filteredDrawings.length > 0) {
-          filteredDrawings.forEach(drawing => {
-            const points = drawing.points
-            if (!Array.isArray(points) || points.length < 1) return
-
-            if (points[0].tool === 'spray') {
-              points.forEach(point => {
-                ctx.fillStyle = point.tool === 'eraser' ? '#e8f5e9' : point.color
-                ctx.globalAlpha = point.opacity * 0.6
-                const density = point.size * 3
-                const radius = point.size * 1.5
-                const particleSize = 0.8
-
-                for (let i = 0; i < density; i++) {
-                  const angle = Math.random() * Math.PI * 2
-                  const radiusRandom = Math.sqrt(Math.random()) * radius
-                  const particleX = point.x + Math.cos(angle) * radiusRandom
-                  const particleY = point.y + Math.sin(angle) * radiusRandom
-
-                  ctx.beginPath()
-                  ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
-                  ctx.fill()
-                }
-              })
-            } else {
-              ctx.globalAlpha = points[0].opacity
-              ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
-              ctx.lineWidth = points[0].size
-              ctx.lineCap = 'round'
-              ctx.lineJoin = 'round'
-
-              ctx.beginPath()
-              ctx.moveTo(points[0].x, points[0].y)
-
-              for (let i = 1; i < points.length; i++) {
-                ctx.lineTo(points[i].x, points[i].y)
-              }
-              ctx.stroke()
-            }
-          })
-        }
-      } catch (error) {
-        console.error('Error loading drawings:', error)
-        setError(error instanceof Error ? error.message : 'Failed to load drawings')
-      } finally {
-        setIsLoading(false)
+      } catch (err) {
+        console.error('Error loading drawings:', err)
       }
     }
 
     loadDrawings()
   }, [roomName])
 
-  const sprayEffect = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
-    const density = tools.size * 3 // Increase density for more particles
-    const radius = tools.size * 1.5 // Larger spray area
-    const particleSize = 0.8 // Slightly larger particles
-    
-    ctx.fillStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
-    ctx.globalAlpha = tools.opacity * 0.6 // Adjust opacity for spray effect
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
 
-    for (let i = 0; i < density; i++) {
-      // Use polar coordinates for better particle distribution
-      const angle = Math.random() * Math.PI * 2
-      // Square root for more even particle distribution
-      const radiusRandom = Math.sqrt(Math.random()) * radius
-      const particleX = x + Math.cos(angle) * radiusRandom
-      const particleY = y + Math.sin(angle) * radiusRandom
+    const handleDrawEvent = (points: Array<{
+      x: number
+      y: number
+      color: string
+      size: number
+      opacity: number
+      tool: 'brush' | 'eraser' | 'text' | 'spray'
+      timestamp: number
+    }>) => {
+      const ctx = canvas.getContext('2d')
+      if (!ctx || points.length < 2) return
+
+      ctx.globalAlpha = points[0].opacity
+      ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color
+      ctx.lineWidth = points[0].size
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
 
       ctx.beginPath()
-      ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }, [tools])
+      ctx.moveTo(points[0].x, points[0].y)
 
-  const drawPath = useCallback((ctx: CanvasRenderingContext2D, points: DrawPoint[]) => {
-    if (!points.length) return;
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y)
+      }
+      ctx.stroke()
+    }
+
+    const handleClearEvent = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      const scale = window.devicePixelRatio || 1
+      ctx.fillStyle = '#e8f5e9'
+      ctx.globalAlpha = 1
+      ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+    }
+
+    const channel = supabase.channel(`drawing:${roomName}`)
+    channel
+      .on('broadcast', { event: 'draw' }, (payload: { payload: { points: Array<{
+        x: number
+        y: number
+        color: string
+        size: number
+        opacity: number
+        tool: 'brush' | 'eraser' | 'text' | 'spray'
+        timestamp: number
+      }> } }) => {
+        if (payload.payload.points) {
+          handleDrawEvent(payload.payload.points)
+        }
+      })
+      .on('broadcast', { event: 'clear' }, () => {
+        handleClearEvent()
+      })
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [roomName])
+
+  const handleClearCanvas = async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const scale = window.devicePixelRatio || 1
+    ctx.fillStyle = '#e8f5e9'
+    ctx.globalAlpha = 1
+    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale)
+
+    await clearCanvas()
+  }
+
+  const sprayEffect = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    const density = tools.size * 2; // More particles for larger sizes
+    const radius = tools.size;
     
-    ctx.globalAlpha = points[0].opacity;
-    ctx.strokeStyle = points[0].tool === 'eraser' ? '#e8f5e9' : points[0].color;
-    ctx.lineWidth = points[0].size;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    ctx.fillStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color;
+    ctx.globalAlpha = (tools.opacity * 0.4); // Reduce opacity for spray effect
 
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-
-    for (let i = 1; i < points.length; i++) {
-      const xc = (points[i].x + points[i - 1].x) / 2;
-      const yc = (points[i].y + points[i - 1].y) / 2;
-      ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+    for (let i = 0; i < density; i++) {
+      const offsetX = (Math.random() * 2 - 1) * radius;
+      const offsetY = (Math.random() * 2 - 1) * radius;
+      const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+      
+      if (distance <= radius) {
+        ctx.beginPath();
+        ctx.arc(x + offsetX, y + offsetY, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
+  }
 
-    if (points.length > 1) {
-      const lastPoint = points[points.length - 1];
-      ctx.lineTo(lastPoint.x, lastPoint.y);
-    }
+  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
 
-    ctx.stroke();
-  }, []);
+    const rect = canvas.getBoundingClientRect()
+    const scale = canvas.width / rect.width // Account for device pixel ratio
+    
+    let x = (e.clientX - rect.left) * scale
+    let y = (e.clientY - rect.top) * scale
 
-  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    // Constrain coordinates to canvas boundaries
+    x = Math.max(0, Math.min(x, canvas.width))
+    y = Math.max(0, Math.min(y, canvas.height))
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    return { x: x / scale, y: y / scale } // Convert back to display coordinates
+  }
 
-    setIsDrawing(true);
-    setCurrentPath([{
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const { x, y } = getCanvasCoordinates(e)
+    setIsDrawing(true)
+    
+    pointsRef.current = [{
       x,
       y,
       ...tools,
       timestamp: Date.now()
-    }]);
+    }]
 
     // Draw initial mark
     const ctx = canvas.getContext('2d')
@@ -496,147 +303,49 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         })
       }
     }
-  }, [tools, earnAchievement, sprayEffect, user]);
+  }
 
-  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvas = canvasRef.current
+    if (!canvas) return
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCanvasCoordinates(e)
 
-    const newPoint = {
+    if (tools.tool === 'spray') {
+      sprayEffect(ctx, x, y)
+    } else {
+      ctx.globalAlpha = tools.opacity
+      ctx.strokeStyle = tools.tool === 'eraser' ? '#e8f5e9' : tools.color
+      ctx.lineWidth = tools.size
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+
+      const lastPoint = pointsRef.current[pointsRef.current.length - 1]
+      ctx.beginPath()
+      ctx.moveTo(lastPoint.x, lastPoint.y)
+      ctx.lineTo(x, y)
+      ctx.stroke()
+    }
+
+    pointsRef.current.push({
       x,
       y,
       ...tools,
       timestamp: Date.now()
-    };
+    })
+  }
 
-    if (tools.tool === 'spray') {
-      sprayEffect(ctx, x, y);
-    }
-
-    setCurrentPath(prev => {
-      const updatedPath = [...prev, newPoint];
-      if (updatedPath.length > 1 && tools.tool !== 'spray') {
-        drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
-      }
-      return updatedPath;
-    });
-
-    updateCursor(x, y);
-  }, [isDrawing, tools, drawPath, updateCursor, sprayEffect]);
-
-  const finishDrawing = useCallback(() => {
-    if (!isDrawing) return;
-
-    setIsDrawing(false);
-    
-    // Save the completed path
-    if (currentPath.length > 1) {
-      // Update local state first
-      setSavedDrawings(prev => [...prev, { points: currentPath }]);
-      
-      // Then broadcast to other users
-      broadcastDrawing(currentPath);
-      
-      // Finally save to database
-      supabase
-        .from('drawing_data')
-        .insert({
-          room_name: roomName,
-          points: currentPath,
-          created_at: new Date().toISOString()
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error saving drawing:', error.message);
-          }
-        });
-      
-      if (onDraw) {
-        onDraw(currentPath);
-      }
-    }
-    
-    setCurrentPath([]);
-  }, [isDrawing, currentPath, broadcastDrawing, onDraw, roomName]);
-
-  // Add window-level mouse event handlers for continuous drawing
-  useEffect(() => {
-    const handleWindowMouseMove = (e: MouseEvent) => {
-      if (!isDrawing) return;
-
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-      const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const newPoint = {
-        x,
-        y,
-        ...tools,
-        timestamp: Date.now()
-      };
-
-      setCurrentPath(prev => {
-        const updatedPath = [...prev, newPoint];
-        if (updatedPath.length > 1) {
-          drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
-        }
-        return updatedPath;
-      });
-
-      updateCursor(x, y);
-    };
-
-    const handleWindowMouseUp = () => {
-      if (isDrawing) {
-        finishDrawing();
-      }
-    };
-
+  const stopDrawing = () => {
     if (isDrawing) {
-      window.addEventListener('mousemove', handleWindowMouseMove);
-      window.addEventListener('mouseup', handleWindowMouseUp);
+      setIsDrawing(false)
+      onDraw?.(pointsRef.current)
+      pointsRef.current = []
     }
-
-    return () => {
-      window.removeEventListener('mousemove', handleWindowMouseMove);
-      window.removeEventListener('mouseup', handleWindowMouseUp);
-    };
-  }, [isDrawing, tools, drawPath, updateCursor, finishDrawing]);
-
-  // Redraw canvas when savedDrawings changes or canvas is resized
-  useEffect(() => {
-    redrawCanvas()
-  }, [savedDrawings, redrawCanvas])
-
-  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-
-    const rect = canvas.getBoundingClientRect()
-    
-    let x = e.clientX - rect.left
-    let y = e.clientY - rect.top
-
-    // Constrain coordinates to canvas boundaries
-    x = Math.max(0, Math.min(x, rect.width))
-    y = Math.max(0, Math.min(y, rect.height))
-
-    return { x, y }
   }
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -670,66 +379,37 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
     setTools(prev => ({ ...prev, text: '' }))
   }
 
-  // Add touch support
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    setIsDrawing(true);
-    setCurrentPath([{
-      x,
-      y,
-      ...tools,
-      timestamp: Date.now()
-    }]);
-  }, [tools]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    if (!isDrawing) return;
-
-    const touch = e.touches[0];
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    const newPoint = {
-      x,
-      y,
-      ...tools,
-      timestamp: Date.now()
-    };
-
-    if (tools.tool === 'spray') {
-      sprayEffect(ctx, x, y);
+  // Add global mouse event handlers
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (isDrawing) {
+        const fakeEvent = {
+          clientX: e.clientX,
+          clientY: e.clientY
+        } as React.MouseEvent<HTMLCanvasElement>
+        draw(fakeEvent)
+      }
     }
 
-    setCurrentPath(prev => {
-      const updatedPath = [...prev, newPoint];
-      if (updatedPath.length > 1 && tools.tool !== 'spray') {
-        drawPath(ctx, [updatedPath[updatedPath.length - 2], updatedPath[updatedPath.length - 1]]);
+    const handleGlobalMouseUp = () => {
+      if (isDrawing) {
+        stopDrawing()
       }
-      return updatedPath;
-    });
+    }
 
-    updateCursor(x, y);
-  }, [isDrawing, tools, drawPath, updateCursor, sprayEffect]);
+    // Add global event listeners
+    window.addEventListener('mousemove', handleGlobalMouseMove)
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove)
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
+    }
+  }, [isDrawing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex flex-col h-[800px] bg-zinc-900 border border-zinc-800">
-      <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+    <div className="flex flex-col aspect-square max-w-[800px] w-full bg-zinc-900 border border-zinc-800">
+      <div className="flex flex-wrap items-center gap-2 p-2 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
         <div className="flex flex-wrap items-center gap-2">
           <button
             className={`px-3 py-1 rounded ${
@@ -810,48 +490,41 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
 
           <button
             className="px-3 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
-            onClick={clearCanvasCompletely}
+            onClick={handleClearCanvas}
           >
             <Trash2 size={16} className="inline-block mr-1" />
             Clear
           </button>
         </div>
 
-        {/* Connection status and active users */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800">
-            <div className={cn(
-              "w-2 h-2 rounded-full",
-              isConnected ? "bg-green-400" : "bg-yellow-400"
-            )} />
-            <span className="text-xs font-mono text-zinc-400">
-              {isConnected ? 'Connected' : 'Connecting...'}
-            </span>
+        {tools.tool === 'text' && textPosition && (
+          <div className="flex items-center gap-2 mt-2 w-full">
+            <input
+              type="text"
+              value={tools.text}
+              onChange={(e) => setTools(prev => ({ ...prev, text: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  addTextToCanvas(tools.text || '')
+                }
+              }}
+              placeholder="Type text and press Enter"
+              className="px-2 py-1 bg-zinc-800 text-zinc-300 rounded border border-zinc-700 focus:outline-none focus:border-green-400 flex-1"
+            />
           </div>
+        )}
 
-          <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800">
+        {/* Connection Status */}
+        <div className="flex items-center gap-2 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-800 ml-auto">
+          <div className={cn(
+            "w-2 h-2 rounded-full",
+            isConnected ? "bg-green-400" : "bg-yellow-400"
+          )} />
+          <span className="text-xs font-mono text-zinc-400">
+            {isConnected ? 'Connected' : 'Connecting...'}
+          </span>
+          <div className="flex items-center gap-1 border-l border-zinc-800 pl-2">
             <Users className="w-3 h-3 text-zinc-400" />
-            <div className="flex -space-x-2">
-              {cursors.map(([key, cursor]) => (
-                <div
-                  key={key}
-                  className="w-6 h-6 rounded-full border-2 border-zinc-800 flex items-center justify-center"
-                  style={{ backgroundColor: cursor.color }}
-                >
-                  <span className="text-[10px] font-medium text-white">
-                    {cursor.name[0].toUpperCase()}
-                  </span>
-                </div>
-              ))}
-              <div
-                className="w-6 h-6 rounded-full border-2 border-zinc-800 flex items-center justify-center"
-                style={{ backgroundColor: userColor }}
-              >
-                <span className="text-[10px] font-medium text-white">
-                  {username[0].toUpperCase()}
-                </span>
-              </div>
-            </div>
             <span className="text-xs font-mono text-zinc-400">
               {cursors.length + 1}
             </span>
@@ -859,106 +532,81 @@ export default function DrawingCanvas({ roomName, username, onDraw }: DrawingCan
         </div>
       </div>
 
-      <div className="flex-1 relative">
-        {error && (
-          <div className="absolute inset-x-0 top-4 mx-8 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm z-50">
-            {error}
-          </div>
-        )}
-        
-        {isLoading && (
-          <div className="absolute top-4 right-4 px-4 py-2 bg-zinc-800/90 backdrop-blur-sm rounded-lg shadow-lg z-50">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-zinc-400">Loading drawings...</span>
-            </div>
-          </div>
-        )}
-
-        <div className="absolute inset-0 m-8">
+      <div className="relative flex-1 p-2 overflow-hidden">
+        <div 
+          className="absolute inset-0 m-2 rounded-lg overflow-hidden"
+          style={{
+            background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
+            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
+            border: '2px solid #4A2810',
+            height: 'calc(100% - 16px)'
+          }}
+        >
           <div 
-            className="h-full rounded-lg overflow-hidden"
+            className="absolute inset-0 opacity-40 mix-blend-overlay"
             style={{
-              background: 'linear-gradient(45deg, #8B4513, #A0522D, #6B4423)',
-              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2)',
-              border: '2px solid #4A2810'
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'repeat'
             }}
-          >
-            {/* Corner screws */}
-            <div className="absolute top-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute bottom-3 left-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
-            <div className="absolute bottom-3 right-3 w-4 h-4 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
-                <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
-                <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
-              </div>
-            </div>
+          />
 
-            {/* Canvas container */}
-            <div className="absolute inset-6 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
-              <canvas
-                ref={canvasRef}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onClick={handleCanvasClick}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={finishDrawing}
-                className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
+          {/* Corner screws */}
+          <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            </div>
+          </div>
+          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            </div>
+          </div>
+          <div className="absolute bottom-2 left-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            </div>
+          </div>
+          <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-zinc-700 shadow-inner flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-500 to-zinc-600 shadow-sm" style={{ transform: 'rotate(45deg)' }}>
+              <div className="w-full h-0.5 bg-zinc-800 absolute top-1/2 -translate-y-1/2" />
+              <div className="h-full w-0.5 bg-zinc-800 absolute left-1/2 -translate-x-1/2" />
+            </div>
+          </div>
+
+          {/* Inner shadow */}
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              boxShadow: 'inset 0 0 30px rgba(0,0,0,0.4)'
+            }}
+          />
+        </div>
+
+        {/* Canvas container */}
+        <div className="relative h-[calc(100%-48px)] mx-8 my-8">
+          <div className="absolute inset-0 bg-[#e8f5e9] rounded-lg overflow-hidden shadow-inner">
+            <canvas
+              ref={canvasRef}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onClick={handleCanvasClick}
+              className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
+            />
+
+            {/* Cursors */}
+            {cursors.map(([key, cursor]) => (
+              <Cursor
+                key={key}
+                x={cursor.x}
+                y={cursor.y}
+                color={cursor.color}
+                name={cursor.name}
               />
-
-              {/* Cursors */}
-              {cursors.map(([key, cursor]) => (
-                <Cursor
-                  key={key}
-                  x={cursor.x}
-                  y={cursor.y}
-                  color={cursor.color}
-                  name={cursor.name}
-                />
-              ))}
-
-              {/* Text input */}
-              {tools.tool === 'text' && textPosition && (
-                <div 
-                  className="absolute"
-                  style={{
-                    left: textPosition.x,
-                    top: textPosition.y - 30
-                  }}
-                >
-                  <input
-                    type="text"
-                    value={tools.text}
-                    onChange={(e) => setTools(prev => ({ ...prev, text: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        addTextToCanvas(tools.text || '')
-                      }
-                    }}
-                    placeholder="Type text and press Enter"
-                    className="px-2 py-1 bg-zinc-800 text-zinc-300 rounded border border-zinc-700 focus:outline-none focus:border-green-400"
-                    autoFocus
-                  />
-                </div>
-              )}
-            </div>
+            ))}
           </div>
         </div>
       </div>

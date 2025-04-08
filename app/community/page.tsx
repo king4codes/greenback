@@ -7,7 +7,7 @@ export default function Community() {
     <MainLayout>
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4">
-          <h1 className="font-garamond text-4xl text-green-400">Community</h1>
+          <h1 className="font-garamond text-5xl font-bold italic text-green-400">Community</h1>
           <p className="font-mono text-zinc-400">
             Connect with other PrintGreen™ members<br />
             and share your sustainable trading strategies.

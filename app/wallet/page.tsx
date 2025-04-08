@@ -49,7 +49,7 @@ export default function WalletPage() {
     <MainLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="font-garamond text-2xl text-green-400">Wallet</h1>
+          <h1 className="font-garamond text-4xl font-bold italic text-green-400">Wallet</h1>
           {!connected && <WalletConnect />}
         </div>
 
@@ -125,7 +125,7 @@ export default function WalletPage() {
           </>
         ) : (
           <div className="bg-zinc-800/30 rounded-lg p-16 text-center">
-            <h2 className="font-garamond text-xl text-green-400 mb-4">Connect Your Wallet</h2>
+            <h2 className="font-garamond text-2xl font-bold italic text-green-400 mb-4">Connect Your Wallet</h2>
             <p className="text-zinc-400 font-mono text-sm mb-6">Connect your wallet to view your balance and transactions</p>
             <button
               onClick={() => setVisible(true)}

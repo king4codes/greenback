@@ -104,7 +104,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
             <AvatarScene isProfileView={true} />
           </div>
           <div className="space-y-2">
-            <h2 className="font-garamond text-xl text-green-400">{user?.display_name || 'Guest'}</h2>
+            <h2 className="font-garamond text-2xl font-bold italic text-green-400">{user?.display_name || 'Guest'}</h2>
             <p className="font-mono text-xs text-zinc-400">Member since {new Date(user?.created_at || Date.now()).getFullYear()}</p>
           </div>
           <div className="space-y-4">

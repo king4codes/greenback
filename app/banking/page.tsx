@@ -48,7 +48,7 @@ export default function Banking() {
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-3">
             <Building2 className="w-6 h-6 text-green-400" />
-            <h1 className="font-garamond text-2xl text-green-400">GBC Banking</h1>
+            <h1 className="font-garamond text-3xl font-bold italic text-green-400">GBC Banking</h1>
           </div>
           <WalletConnect />
         </div>
@@ -57,8 +57,8 @@ export default function Banking() {
           {/* Balance Card */}
           <div className="md:col-span-2 bg-zinc-800/50 rounded-lg p-3">
             <div className="space-y-2 text-center">
-              <h2 className="font-garamond text-lg text-zinc-400">Your Balance</h2>
-              <div className="text-2xl font-garamond text-green-400">
+              <h2 className="font-garamond text-xl font-bold italic text-zinc-400">Your Balance</h2>
+              <div className="text-3xl font-garamond font-bold italic text-green-400">
                 1,234 $GBC
               </div>
               <div className="text-sm text-zinc-300">≈ $123.40 USD</div>
@@ -69,8 +69,8 @@ export default function Banking() {
           {/* APY Info */}
           <div className="md:col-span-1 bg-zinc-800/50 rounded-lg p-3">
             <div className="space-y-2 text-center">
-              <h2 className="font-garamond text-lg text-zinc-400">Savings APY</h2>
-              <div className="text-2xl font-garamond text-green-400">22%</div>
+              <h2 className="font-garamond text-xl font-bold italic text-zinc-400">Savings APY</h2>
+              <div className="text-3xl font-garamond font-bold italic text-green-400">22%</div>
               <div className="text-sm text-zinc-300">Monthly</div>
               <div className="text-xs text-zinc-400">+3.5% MM</div>
             </div>
@@ -79,8 +79,8 @@ export default function Banking() {
           {/* Coming Soon */}
           <div className="md:col-span-1 bg-zinc-800/50 rounded-lg p-3">
             <div className="space-y-2 text-center">
-              <h2 className="font-garamond text-lg text-zinc-400">Coming</h2>
-              <div className="text-xl font-garamond text-yellow-400">P2P</div>
+              <h2 className="font-garamond text-xl font-bold italic text-zinc-400">Coming</h2>
+              <div className="text-2xl font-garamond font-bold italic text-yellow-400">P2P</div>
               <div className="text-sm text-zinc-300">10x</div>
               <div className="text-xs text-zinc-400">Soon</div>
             </div>
@@ -144,32 +144,32 @@ export default function Banking() {
           <div className="md:col-span-2 grid grid-cols-2 gap-3">
             <div className="bg-zinc-800/50 rounded-lg p-2">
               <div className="space-y-1">
-                <h3 className="font-garamond text-sm text-zinc-400">Deposits</h3>
-                <div className="text-lg font-garamond text-green-400">$1.2M</div>
+                <h3 className="font-garamond text-base font-bold italic text-zinc-400">Deposits</h3>
+                <div className="text-xl font-garamond font-bold italic text-green-400">$1.2M</div>
                 <div className="text-xs text-zinc-300">+12%</div>
               </div>
             </div>
 
             <div className="bg-zinc-800/50 rounded-lg p-2">
               <div className="space-y-1">
-                <h3 className="font-garamond text-sm text-zinc-400">Lending</h3>
-                <div className="text-lg font-garamond text-green-400">$450K</div>
+                <h3 className="font-garamond text-base font-bold italic text-zinc-400">Lending</h3>
+                <div className="text-xl font-garamond font-bold italic text-green-400">$450K</div>
                 <div className="text-xs text-zinc-300">+8%</div>
               </div>
             </div>
 
             <div className="bg-zinc-800/50 rounded-lg p-2">
               <div className="space-y-1">
-                <h3 className="font-garamond text-sm text-zinc-400">Borrowing</h3>
-                <div className="text-lg font-garamond text-green-400">$320K</div>
+                <h3 className="font-garamond text-base font-bold italic text-zinc-400">Borrowing</h3>
+                <div className="text-xl font-garamond font-bold italic text-green-400">$320K</div>
                 <div className="text-xs text-zinc-300">+15%</div>
               </div>
             </div>
 
             <div className="bg-zinc-800/50 rounded-lg p-2">
               <div className="space-y-1">
-                <h3 className="font-garamond text-sm text-zinc-400">Users</h3>
-                <div className="text-lg font-garamond text-green-400">1,234</div>
+                <h3 className="font-garamond text-base font-bold italic text-zinc-400">Users</h3>
+                <div className="text-xl font-garamond font-bold italic text-green-400">1,234</div>
                 <div className="text-xs text-zinc-300">+25%</div>
               </div>
             </div>
@@ -179,7 +179,7 @@ export default function Banking() {
           <div className="md:col-span-8 bg-zinc-800/50 rounded-lg p-4">
             {selectedTab === 'deposit' && (
               <div className="space-y-4">
-                <h2 className="font-garamond text-xl text-green-400 text-center">Deposit Assets</h2>
+                <h2 className="font-garamond text-2xl font-bold italic text-green-400 text-center">Deposit Assets</h2>
                 <div className="max-w-md mx-auto space-y-3">
                   <div className="space-y-2">
                     <label className="block text-base text-zinc-300">Select Asset</label>
@@ -207,7 +207,7 @@ export default function Banking() {
                   <button
                     onClick={handleTransaction}
                     className={cn(
-                      "w-full px-4 py-2 rounded-lg font-garamond text-base font-medium",
+                      "w-full px-4 py-2 rounded-lg font-garamond text-lg font-bold italic",
                       connected && !loading
                         ? "bg-green-600 text-white hover:bg-green-500"
                         : "bg-zinc-700 text-zinc-400 cursor-not-allowed"
@@ -228,7 +228,7 @@ export default function Banking() {
 
             {selectedTab === 'withdraw' && (
               <div className="space-y-4">
-                <h2 className="font-garamond text-xl text-green-400 text-center">Withdraw to USDT</h2>
+                <h2 className="font-garamond text-2xl font-bold italic text-green-400 text-center">Withdraw to USDT</h2>
                 <div className="max-w-md mx-auto space-y-3">
                   <div className="space-y-2">
                     <label className="block text-base text-zinc-300">$GBC Amount</label>
@@ -248,7 +248,7 @@ export default function Banking() {
                   <button
                     onClick={handleTransaction}
                     className={cn(
-                      "w-full px-4 py-2 rounded-lg font-garamond text-base font-medium",
+                      "w-full px-4 py-2 rounded-lg font-garamond text-lg font-bold italic",
                       connected && !loading
                         ? "bg-green-600 text-white hover:bg-green-500"
                         : "bg-zinc-700 text-zinc-400 cursor-not-allowed"
@@ -269,7 +269,7 @@ export default function Banking() {
 
             {selectedTab === 'lend' && (
               <div className="space-y-4">
-                <h2 className="font-garamond text-xl text-green-400 text-center">Lend $GBC</h2>
+                <h2 className="font-garamond text-2xl font-bold italic text-green-400 text-center">Lend $GBC</h2>
                 <div className="max-w-md mx-auto space-y-3">
                   <div className="space-y-2">
                     <label className="block text-base text-zinc-300">Amount to Lend</label>
@@ -289,7 +289,7 @@ export default function Banking() {
                   <button
                     onClick={handleTransaction}
                     className={cn(
-                      "w-full px-4 py-2 rounded-lg font-garamond text-base font-medium",
+                      "w-full px-4 py-2 rounded-lg font-garamond text-lg font-bold italic",
                       connected && !loading
                         ? "bg-green-600 text-white hover:bg-green-500"
                         : "bg-zinc-700 text-zinc-400 cursor-not-allowed"
@@ -310,7 +310,7 @@ export default function Banking() {
 
             {selectedTab === 'borrow' && (
               <div className="space-y-4">
-                <h2 className="font-garamond text-xl text-green-400 text-center">Borrow Against $GBC</h2>
+                <h2 className="font-garamond text-2xl font-bold italic text-green-400 text-center">Borrow Against $GBC</h2>
                 <div className="max-w-md mx-auto space-y-3">
                   <div className="space-y-2">
                     <label className="block text-base text-zinc-300">Amount to Borrow (in SOL)</label>
@@ -330,7 +330,7 @@ export default function Banking() {
                   <button
                     onClick={handleTransaction}
                     className={cn(
-                      "w-full px-4 py-2 rounded-lg font-garamond text-base font-medium",
+                      "w-full px-4 py-2 rounded-lg font-garamond text-lg font-bold italic",
                       connected && !loading
                         ? "bg-green-600 text-white hover:bg-green-500"
                         : "bg-zinc-700 text-zinc-400 cursor-not-allowed"

@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase'
 import { useAchievements } from '@/hooks/use-achievements'
 import { useTrading } from '@/hooks/use-trading'
 import { cn } from '@/lib/utils'
+import TradingWidgets from '@/components/TradingWidgets'
 
 interface TokenProfile {
   url: string;
@@ -106,44 +107,6 @@ export default function TradingPage() {
     fetchTokenProfiles();
   }, []);
 
-  const TradingView = () => (
-    <div className="space-y-4">
-      {/* Trading Widgets Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* DEXTools Chart Widget */}
-        <div className="bg-zinc-800/50 rounded-lg overflow-hidden">
-          <iframe
-            id="dextools-widget"
-            title="DEXTools Trading Chart"
-            width="100%"
-            height="800"
-            src="https://www.dextools.io/widget-chart/en/solana/pe-light/Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE?theme=dark&chartType=2&chartResolution=30&drawingToolbars=false"
-            className="border-0"
-          />
-        </div>
-
-        {/* DEXTswap Aggregator Widget */}
-        <div className="bg-zinc-800/50 rounded-lg overflow-hidden">
-          <iframe
-            id="dextswap-aggregator-widget"
-            title="DEXTswap Aggregator"
-            width="100%"
-            height="800"
-            src="https://www.dextools.io/widget-aggregator/en/swap/solana/9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump"
-            className="border-0"
-          />
-        </div>
-      </div>
-
-      {/* Trade Status */}
-      {tradeError && (
-        <div className="bg-red-900/20 border border-red-900/30 rounded-lg p-4 text-red-400 text-sm">
-          {tradeError}
-        </div>
-      )}
-    </div>
-  );
-
   const TokensView = () => (
     <div className="space-y-4">
       {/* Token Profiles */}
@@ -185,7 +148,7 @@ export default function TradingPage() {
       <div className="space-y-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-4">
-            <h1 className="font-garamond text-3xl text-green-400">Trading</h1>
+            <h1 className="font-garamond text-4xl font-bold italic text-green-400">Trading</h1>
             <div className="flex bg-zinc-800/50 rounded-lg p-1">
               <button
                 onClick={() => setCurrentView('trading')}
@@ -221,7 +184,7 @@ export default function TradingPage() {
         {loading && currentView === 'tokens' ? (
           <div className="text-center text-zinc-400 py-8">Loading token profiles...</div>
         ) : currentView === 'trading' ? (
-          <TradingView />
+          <TradingWidgets />
         ) : (
           <TokensView />
         )}
